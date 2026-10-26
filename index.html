@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 </head>
 <body>
 <style>
@@ -114,6 +116,13 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .legend span{display:flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
 
+/* account */
+.acct{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.modal{position:fixed;inset:0;z-index:30;background:rgba(10,15,23,.55);display:grid;place-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+.modal-card{position:relative;background:var(--surface);color:var(--ink);border-radius:18px;padding:24px 22px 22px;width:min(440px,100%);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-card h2{font-size:22px;padding-right:28px}
+.modal-x{position:absolute;right:10px;top:10px;width:36px;height:36px;border-radius:10px;border:0;background:var(--soft);font-size:20px;line-height:1;cursor:pointer;color:var(--ink)}
+
 /* compare cards */
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
 .panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
@@ -202,7 +211,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   <header class="top">
     <div class="mark">
       <h1>compare<span>me</span></h1>
-      <div class="count" id="count">Connecting…</div>
+      <div class="acct"><span class="count" id="count">Connecting…</span><button class="btn ghost sm" id="acct-btn" type="button">Sign in</button></div>
     </div>
     <canvas class="strip" id="strip" aria-hidden="true"></canvas>
   </header>
@@ -292,7 +301,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
         <div class="picks" id="picks"></div>
         <p class="hint">The first stat you pick gets the big crowd graphic. Pick up to 4. Money stats are off by default; turn them on if you're happy to post them.</p>
         <div class="frow">
-          <button class="btn" id="save-card" type="button">Save image</button>
+          <button class="btn" id="save-card" type="button">Save or share image</button>
           <button class="btn ghost" id="copy-cap" type="button">Copy caption</button>
         </div>
         <div class="status" id="share-status" role="status"></div>
@@ -318,6 +327,10 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     </div>
     <div class="stack" id="sug-list"></div>
   </section>
+</div>
+
+<div class="modal" id="acct" hidden role="dialog" aria-modal="true" aria-label="Account">
+  <div class="modal-card"><button class="modal-x" id="acct-x" type="button" aria-label="Close">×</button><div id="acct-body" class="stack"></div></div>
 </div>
 
 <script>
@@ -359,10 +372,10 @@ const rid = () => Math.random().toString(36).slice(2, 10).padEnd(8, "0");
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 
 const S = {
-  db:null, uid:null, admin:false,
+  sb:null, user:null, uid:null, admin:false, sugs:[], mineFor:undefined,
   rawReal:[], rawMine:null, real:[], saved:null,
   custom:[], customRaw:[], dismissed:[], cfgKey:"",
-  sugDocs:[], mySug:{items:[], votes:[]},
+  
   demo:null, useDemo:false, demoAuto:true,
   filters:{}, cat:"All", dirty:false, loaded:false, readOnly:false, sugReadOnly:false, tab:"form",
   cardSel:null, cardBlob:null, cardCaption:"",
@@ -448,7 +461,7 @@ function buildForm(){
   }
   $("form").innerHTML = h;
 }
-function markDirty(){ S.dirty = true; setStatus(""); }
+function markDirty(){ S.dirty = true; setStatus(""); saveDraft(); }
 function readForm(){
   const f = $("form"), demo = {}, answers = {};
   for (const d of DEMOS){ const c = f.querySelector(`input[name="d_${d.id}"]:checked`); if (c) demo[d.id] = c.value; }
@@ -1314,81 +1327,111 @@ function renderShare(){
 }
 
 /* ---------- ideas ---------- */
-function sugKey(owner, id){ return owner + "~" + id; }
-function allSuggestions(){
-  const counts = {}, items = [];
-  for (const d of S.sugDocs){
-    const votes = Array.isArray(d.data.votes) ? d.data.votes.filter(v => typeof v === "string").slice(0,500) : [];
-    new Set(votes).forEach(v => counts[v] = (counts[v]||0) + 1);
-    (Array.isArray(d.data.items) ? d.data.items : []).slice(0,20).map(cleanSug).filter(Boolean).forEach(s => items.push({...s, owner:d.id, key:sugKey(d.id, s.id)}));
-  }
-  return items.filter(s => !S.dismissed.includes(s.key)).map(s => ({...s, votes:counts[s.key]||0})).sort((a,b) => b.votes - a.votes || (b.at > a.at ? 1 : -1));
+function cleanSugRow(x){
+  if (!x || typeof x !== "object" || typeof x.id !== "string") return null;
+  const text = typeof x.text === "string" ? x.text.trim().slice(0,140) : "";
+  if (!text || !["num","one","many"].includes(x.type)) return null;
+  const s = {id:x.id, text, type:x.type, status: x.status === "added" ? "added" : "open", votes: Number.isFinite(+x.votes) ? +x.votes : 0, mine: x.mine === true, voted: x.voted === true};
+  if (s.type === "num") s.unit = typeof x.unit === "string" ? x.unit.trim().slice(0,20) : "";
+  else { s.options = cleanOpts(x.options); if (s.options.length < 2) return null; }
+  return s;
+}
+async function loadSuggestions(){
+  if (!S.sb) return;
+  const {data, error} = await S.sb.rpc("cm_get_suggestions");
+  if (error) return;
+  S.sugs = (data || []).map(cleanSugRow).filter(Boolean);
+  if (S.tab === "ideas") renderIdeas();
+}
+async function loadQuestions(){
+  if (!S.sb) return;
+  const {data, error} = await S.sb.from("cm_questions").select("id,label,type,unit,options,from_suggestion").order("created_at");
+  if (error) return;
+  const seen = new Set();
+  S.custom = (data || []).slice(0,30).map(r => cleanCustom({...r, fromKey: r.from_suggestion || ""})).filter(q => q && !seen.has(q.id) && seen.add(q.id));
+  const key = S.custom.map(q => q.id).join(",");
+  recompute();
+  if (key !== S.cfgKey){ S.cfgKey = key; rebuildForm(); if (C.cv) buildLens(); }
 }
 function renderIdeas(){
-  const list = allSuggestions(), myVotes = new Set(S.mySug.votes), inSurvey = new Set(S.custom.map(q => q.fromKey));
+  if (!S.sb){
+    $("sug-list").innerHTML = `<div class="notice"><h3>Suggestions need the database</h3><p class="empty">This copy of compareme isn't connected to a database, so suggestions and votes are turned off.</p></div>`; return;
+  }
+  const list = S.sugs.slice().sort((a,b) => b.votes - a.votes);
   if (!list.length){
     $("sug-list").innerHTML = `<div class="notice"><h3>No suggestions yet</h3><p class="empty">Suggest the first question above. Everyone can vote on suggestions, and the most popular ones can be added to the survey.</p></div>`; return;
   }
   const up = `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 9.5 7 4.5l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   $("sug-list").innerHTML = `<h2 style="font-size:18px">Suggested questions</h2>` + list.map(s => {
-    const mine = s.owner === S.uid, added = inSurvey.has(s.key);
+    const added = s.status === "added";
     const meta = s.type === "num" ? `Number${s.unit ? " · " + s.unit : ""}` : `${s.type === "one" ? "Pick one" : "Pick several"}: ${s.options.join(" · ")}`;
     let actions = "";
-    if (mine && !added) actions += `<button class="btn danger sm" data-act="del" data-id="${esc(s.id)}" type="button">Delete</button>`;
-    if (S.admin && !added) actions += `<button class="btn sm" data-act="add" data-key="${esc(s.key)}" type="button">Add to survey</button><button class="btn ghost sm" data-act="dismiss" data-key="${esc(s.key)}" type="button">Dismiss</button>`;
-    if (S.admin && added) actions += `<button class="btn ghost sm" data-act="unadd" data-key="${esc(s.key)}" type="button">Remove from survey</button>`;
-    return `<div class="sug"><button class="vote" type="button" data-act="vote" data-key="${esc(s.key)}" aria-pressed="${myVotes.has(s.key)}" aria-label="Vote for this question" ${mine?"disabled":""}>${up}<span>${s.votes}</span></button><div class="sug-body">${added?`<span class="badge on">In the survey</span>`:""}${mine?`<span class="badge">Yours</span>`:""}<p>${esc(s.text)}</p><span class="sug-meta">${esc(meta)}</span>${actions?`<div class="sug-actions">${actions}</div>`:""}</div></div>`;
+    if (s.mine && !added) actions += `<button class="btn danger sm" data-act="del" data-id="${esc(s.id)}" type="button">Delete</button>`;
+    if (S.admin && !added) actions += `<button class="btn sm" data-act="add" data-id="${esc(s.id)}" type="button">Add to survey</button><button class="btn ghost sm" data-act="dismiss" data-id="${esc(s.id)}" type="button">Dismiss</button>`;
+    if (S.admin && added) actions += `<button class="btn ghost sm" data-act="unadd" data-id="${esc(s.id)}" type="button">Remove from survey</button>`;
+    return `<div class="sug"><button class="vote" type="button" data-act="vote" data-id="${esc(s.id)}" aria-pressed="${s.voted}" aria-label="Vote for this question" ${s.mine?"disabled":""}>${up}<span>${s.votes}</span></button><div class="sug-body">${added?`<span class="badge on">In the survey</span>`:""}${s.mine?`<span class="badge">Yours</span>`:""}<p>${esc(s.text)}</p><span class="sug-meta">${esc(meta)}</span>${actions?`<div class="sug-actions">${actions}</div>`:""}</div></div>`;
   }).join("");
 }
-function writeMySug(next, okMsg){
-  if (!S.db || !S.uid){ sugStatus("Suggesting and voting need you to be signed in to Claude.", true); return; }
-  if (S.sugReadOnly){ sugStatus("This link lets you view suggestions but not add or vote. Ask the owner to invite you as an editor.", true); return; }
-  const prev = S.mySug; S.mySug = next; renderIdeas();
-  S.sugQ = S.sugQ.then(() => S.db.doc("suggestions/" + S.uid).set({items:next.items, votes:next.votes})).then(() => { if (okMsg) sugStatus(okMsg); }).catch(e => {
-    S.mySug = prev; renderIdeas();
-    if (e && e.code === "invalid_argument"){ S.sugReadOnly = true; sugStatus("This link lets you view suggestions but not add or vote. Ask the owner to invite you as an editor.", true); }
-    else sugStatus("Couldn't save that just now. Try again.", true);
-  });
-}
-function writeConfig(items, dismissed, okMsg){
-  const prevI = S.customRaw, prevD = S.dismissed;
-  S.cfgQ = S.cfgQ.then(() => S.db.doc("config/questions").set({items, dismissed})).then(() => sugStatus(okMsg)).catch(() => { S.customRaw = prevI; S.dismissed = prevD; sugStatus("Couldn't update the survey just now. Try again.", true); });
-}
 function sugStatus(m, err){ const el = $("sug-status"); el.textContent = m; el.classList.toggle("err", !!err); }
+function needSignIn(msg){
+  if (!S.sb){ sugStatus("This copy isn't connected to a database, so suggestions are turned off.", true); return true; }
+  if (S.user) return false;
+  sugStatus(msg, true); openAcct(); return true;
+}
 function bindIdeas(){
   document.querySelectorAll('input[name="sug-type"]').forEach(r => r.addEventListener("change", () => {
     const t = document.querySelector('input[name="sug-type"]:checked').value;
     $("sug-unit").hidden = t !== "num"; $("sug-opts").hidden = t === "num";
   }));
-  $("sug-add").addEventListener("click", () => {
+  $("sug-add").addEventListener("click", async () => {
+    if (needSignIn("Sign in to suggest a question.")) return;
     const text = $("sug-text").value.trim(), type = document.querySelector('input[name="sug-type"]:checked').value;
     if (text.length < 8){ sugStatus("Write the question out in full, at least a few words.", true); return; }
-    const item = {id:rid(), text:text.slice(0,140), type, at:new Date().toISOString()};
-    if (type === "num") item.unit = $("sug-unit").value.trim().slice(0,20);
-    else { item.options = cleanOpts($("sug-opts").value.split(",")); if (item.options.length < 2){ sugStatus("Add at least 2 choices, separated by commas.", true); return; } }
-    if (S.mySug.items.length >= 20){ sugStatus("You've reached 20 suggestions. Delete one to add another.", true); return; }
-    writeMySug({items:[...S.mySug.items, item], votes:S.mySug.votes}, "Thanks. Your suggestion is up for votes.");
+    const row = {text:text.slice(0,140), type, unit:null, options:null};
+    if (type === "num") row.unit = $("sug-unit").value.trim().slice(0,20) || null;
+    else { row.options = cleanOpts($("sug-opts").value.split(",")); if (row.options.length < 2){ sugStatus("Add at least 2 choices, separated by commas.", true); return; } }
+    if (S.sugs.filter(s => s.mine).length >= 20){ sugStatus("You've reached 20 suggestions. Delete one to add another.", true); return; }
+    $("sug-add").disabled = true; sugStatus("Sending…");
+    const {error} = await S.sb.from("cm_suggestions").insert(row);
+    $("sug-add").disabled = false;
+    if (error){ sugStatus("Couldn't submit that just now. Try again.", true); return; }
+    sugStatus("Thanks. Your suggestion is up for votes.");
     $("sug-text").value = ""; $("sug-opts").value = ""; $("sug-unit").value = "";
+    loadSuggestions();
   });
-  $("sug-list").addEventListener("click", e => {
+  $("sug-list").addEventListener("click", async e => {
     const b = e.target.closest("button[data-act]"); if (!b) return;
-    const act = b.dataset.act, key = b.dataset.key;
+    const act = b.dataset.act, s = S.sugs.find(x => x.id === b.dataset.id); if (!s) return;
     if (act === "vote"){
-      const v = new Set(S.mySug.votes); v.has(key) ? v.delete(key) : v.add(key);
-      writeMySug({items:S.mySug.items, votes:[...v].slice(-300)});
-    } else if (act === "del"){
-      writeMySug({items:S.mySug.items.filter(s => s.id !== b.dataset.id), votes:S.mySug.votes}, "Suggestion deleted.");
-    } else if (act === "add"){
-      const s = allSuggestions().find(x => x.key === key); if (!s) return;
-      if (S.customRaw.length >= 30){ sugStatus("The survey already has 30 community questions. Remove one first.", true); return; }
-      const def = {id:"c_" + rid(), label:s.text, type:s.type, fromKey:key};
-      if (s.type === "num") def.unit = s.unit || ""; else def.options = s.options;
-      writeConfig([...S.customRaw, def], S.dismissed, "Added. Everyone now sees it on the You tab.");
-    } else if (act === "unadd"){
-      writeConfig(S.customRaw.filter(d => d.fromKey !== key), S.dismissed, "Removed from the survey. Answers already given are kept but hidden.");
-    } else if (act === "dismiss"){
-      writeConfig(S.customRaw, [...S.dismissed, key].slice(-500), "Suggestion dismissed.");
+      if (needSignIn("Sign in to vote.")) return;
+      const was = s.voted; s.voted = !was; s.votes += was ? -1 : 1; renderIdeas();
+      const {error} = was ? await S.sb.from("cm_votes").delete().eq("suggestion_id", s.id).eq("user_id", S.uid)
+                          : await S.sb.from("cm_votes").insert({suggestion_id:s.id});
+      if (error){ s.voted = was; s.votes += was ? 1 : -1; renderIdeas(); sugStatus("Couldn't save your vote. Try again.", true); }
+      return;
     }
+    b.disabled = true;
+    let error = null;
+    if (act === "del"){
+      ({error} = await S.sb.from("cm_suggestions").delete().eq("id", s.id));
+      if (!error) sugStatus("Suggestion deleted.");
+    } else if (act === "add"){
+      if (S.custom.length >= 30){ sugStatus("The survey already has 30 community questions. Remove one first.", true); b.disabled = false; return; }
+      const q = {id:"c_" + rid(), label:s.text, type:s.type, unit: s.type === "num" ? (s.unit || "") : null, options: s.type === "num" ? null : s.options, from_suggestion:s.id};
+      ({error} = await S.sb.from("cm_questions").insert(q));
+      if (!error) ({error} = await S.sb.from("cm_suggestions").update({status:"added"}).eq("id", s.id));
+      if (!error) sugStatus("Added. Everyone now sees it on the You tab.");
+    } else if (act === "unadd"){
+      ({error} = await S.sb.from("cm_questions").delete().eq("from_suggestion", s.id));
+      if (!error) ({error} = await S.sb.from("cm_suggestions").update({status:"open"}).eq("id", s.id));
+      if (!error) sugStatus("Removed from the survey. Answers already given are kept but hidden.");
+    } else if (act === "dismiss"){
+      ({error} = await S.sb.from("cm_suggestions").update({status:"dismissed"}).eq("id", s.id));
+      if (!error) sugStatus("Suggestion dismissed.");
+    }
+    if (error){ sugStatus("Couldn't update that just now. Try again.", true); b.disabled = false; return; }
+    await Promise.all([loadQuestions(), loadSuggestions()]);
+    renderActive();
   });
 }
 
@@ -1413,51 +1456,110 @@ function setTab(t){
 function setStatus(msg, err){ const el = $("status"); el.textContent = msg; el.classList.toggle("err", !!err); }
 function updateCount(){
   const n = S.real.length + (S.saved ? 1 : 0);
-  $("count").textContent = !S.db ? "Open in Claude while signed in to join the crowd" : n === 0 ? "No one has answered yet. Be the first." : `${n} ${n===1?"person has":"people have"} answered`;
+  $("count").textContent = !S.sb ? "Sample crowd · not connected" : !S.loaded ? "Finding the crowd…" : n === 0 ? "No one has answered yet. Be the first." : `${n} ${n===1?"person has":"people have"} answered`;
+}
+
+/* ---------- account ---------- */
+const CFG = window.COMPAREME_CONFIG || {};
+function openAcct(){ renderAcct(); $("acct").hidden = false; setTimeout(() => { const i = $("acct-email"); if (i) i.focus(); }, 30); }
+function closeAcct(){ $("acct").hidden = true; }
+function updateAcctBtn(){ $("acct-btn").textContent = S.user ? "Account" : "Sign in"; }
+function renderAcct(){
+  const box = $("acct-body");
+  if (!S.sb){
+    box.innerHTML = `<h2>Accounts aren't set up</h2><p class="hint">${CFG.supabaseUrl ? "The sign-in service didn't load. Check your connection and reload." : "This copy of compareme isn't connected to a database yet, so you're exploring the sample crowd."}</p>`;
+    return;
+  }
+  if (S.user){
+    box.innerHTML = `<h2>You're signed in</h2><p class="hint">Signed in as <b id="acct-who"></b>. Your answers are stored without your name or email, and other people only ever see them as part of the crowd.</p><div class="frow"><button class="btn ghost" id="acct-out" type="button">Sign out</button></div>`;
+    $("acct-who").textContent = S.user.email || "your account";
+    $("acct-out").addEventListener("click", signOut);
+    return;
+  }
+  box.innerHTML = `<h2>Sign in to join the crowd</h2><p class="hint">We'll email you a sign-in link, so there's no password. Your email is never shown to anyone or attached to your answers.</p><form id="acct-form" class="stack"><label class="hint" for="acct-email">Email</label><input class="field" id="acct-email" type="email" autocomplete="email" required placeholder="you@example.com"><button class="btn" type="submit">Email me a link</button><div class="status" id="acct-status" role="status"></div></form>`;
+  $("acct-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const em = $("acct-email").value.trim(), st = $("acct-status");
+    st.classList.remove("err"); st.textContent = "Sending…";
+    const {error} = await S.sb.auth.signInWithOtp({email:em, options:{emailRedirectTo: location.origin + location.pathname}});
+    if (error){ st.textContent = "Couldn't send the link: " + (error.message || "try again."); st.classList.add("err"); }
+    else st.textContent = "Check your email and tap the link to finish signing in. Your answers on this device will be waiting.";
+  });
+}
+async function signOut(){ await S.sb.auth.signOut().catch(() => {}); closeAcct(); }
+
+/* ---------- drafts: answers stay on this device until you sign in and save ---------- */
+const DRAFT = "compareme.draft";
+let draftT = null;
+function saveDraft(){ clearTimeout(draftT); draftT = setTimeout(() => { try { localStorage.setItem(DRAFT, JSON.stringify(readForm())); } catch {} }, 400); }
+function loadDraft(){ try { const d = JSON.parse(localStorage.getItem(DRAFT) || "null"); const c = d ? clean(d) : null; return c && (Object.keys(c.answers).length || Object.keys(c.demo).length) ? c : null; } catch { return null; } }
+function clearDraft(){ clearTimeout(draftT); try { localStorage.removeItem(DRAFT); } catch {} }
+
+/* ---------- loading the crowd ---------- */
+async function loadCrowd(){
+  if (!S.sb) return;
+  const uid = S.uid;
+  const [crowd, mine] = await Promise.all([
+    S.sb.rpc("cm_get_crowd"),
+    uid ? S.sb.from("cm_responses").select("demo,answers").eq("user_id", uid).maybeSingle() : Promise.resolve({data:null})
+  ]);
+  if (uid !== S.uid) return;
+  if (crowd.error){ $("count").textContent = "Couldn't reach the crowd. Reload to try again."; return; }
+  S.rawReal = Array.isArray(crowd.data) ? crowd.data.slice(0, 5000) : [];
+  S.rawMine = mine.data || null;
+  recompute();
+  const firstForUser = S.mineFor !== uid;
+  S.mineFor = uid;
+  $("remove").hidden = !S.saved;
+  if (firstForUser && S.saved && !S.dirty){
+    fillForm(S.saved);
+    if (!S.loaded){ S.loaded = true; updateCount(); setTab("crowd"); return; }
+  }
+  S.loaded = true;
+  updateCount(); renderActive();
 }
 
 /* ---------- save / remove ---------- */
-const READ_ONLY_MSG = "This link lets you view comparisons but not add answers. Ask the owner to invite you as an editor.";
 async function save(){
   const rec = readForm();
   const missing = DEMOS.filter(d => d.req && !rec.demo[d.id]).map(d => d.label.toLowerCase());
   if (missing.length){ setStatus(`Pick your ${missing.join(", ")} first. "Prefer not to say" is fine for gender.`, true); return; }
-  if (!S.db || !S.uid){ setStatus("Saving needs you to be signed in to Claude. You can still explore the sample crowd.", true); return; }
-  if (S.readOnly){ setStatus(READ_ONLY_MSG, true); return; }
+  if (!S.sb){ setStatus("This copy isn't connected to a database, so answers can't be saved. You can still explore the sample crowd.", true); return; }
+  if (!S.user){ setStatus("Sign in to save your answers and join the crowd. Your answers stay on this device until then.", true); openAcct(); return; }
   const keep = S.rawMine && S.rawMine.answers && typeof S.rawMine.answers === "object" ? Object.fromEntries(Object.entries(S.rawMine.answers).filter(([k]) => /^c_/.test(k) && !QS.some(q => q.id === k))) : {};
   $("save").disabled = true; setStatus("Saving…");
-  try {
-    const body = {v:1, demo:rec.demo, answers:{...keep, ...rec.answers}, updatedAt:new Date().toISOString()};
-    await S.db.doc("responses/" + S.uid).set(body);
-    S.rawMine = body; S.saved = rec; S.dirty = false;
-    setStatus("Saved. You're in the crowd now.");
-    $("remove").hidden = false;
-  } catch (e) {
-    if (e && e.code === "invalid_argument"){ S.readOnly = true; setStatus(READ_ONLY_MSG, true); }
-    else if (e && e.code === "quota_exceeded") setStatus("The answer store is full, so new answers can't be saved right now.", true);
-    else setStatus("Couldn't save just now. Check your connection and try again.", true);
-  } finally { $("save").disabled = false; updateCount(); }
+  const body = {user_id:S.uid, demo:rec.demo, answers:{...keep, ...rec.answers}, updated_at:new Date().toISOString()};
+  const {error} = await S.sb.from("cm_responses").upsert(body);
+  $("save").disabled = false;
+  if (error){ setStatus("Couldn't save just now. Check your connection and try again.", true); return; }
+  S.rawMine = body; S.saved = rec; S.dirty = false; clearDraft();
+  setStatus("Saved. You're in the crowd now.");
+  $("remove").hidden = false;
+  updateCount();
 }
 let armTimer = null;
 async function removeMine(){
   const b = $("remove");
   if (b.dataset.armed !== "1"){ b.dataset.armed = "1"; b.textContent = "Tap again to remove"; clearTimeout(armTimer); armTimer = setTimeout(() => { b.dataset.armed = "0"; b.textContent = "Remove my answers"; }, 4000); return; }
   clearTimeout(armTimer); b.dataset.armed = "0"; b.textContent = "Remove my answers";
-  try { await S.db.doc("responses/" + S.uid).delete(); S.rawMine = null; S.saved = null; S.dirty = false; fillForm(null); b.hidden = true; setStatus("Your answers were removed."); updateCount(); }
-  catch { setStatus("Couldn't remove your answers just now. Try again.", true); }
+  const {error} = await S.sb.from("cm_responses").delete().eq("user_id", S.uid);
+  if (error){ setStatus("Couldn't remove your answers just now. Try again.", true); return; }
+  S.rawMine = null; S.saved = null; S.dirty = false; clearDraft(); fillForm(null); b.hidden = true; setStatus("Your answers were removed."); updateCount();
 }
 
 /* ---------- share actions ---------- */
 async function saveCard(){
   const st = $("share-status");
-  const dl = window.claude?.use ? await window.claude.use("downloads") : null;
-  if (!dl || !S.cardBlob){ st.textContent = "Saving isn't available here. Press and hold (or right-click) the card image to save it."; return; }
-  try { await dl.save({filename:"compareme-card.png", data:S.cardBlob}); st.textContent = "Card ready. Post it wherever you like."; st.classList.remove("err"); }
-  catch (e) {
-    if (e && e.code === "declined") st.textContent = "";
-    else if (e && e.code === "rate_limited") st.textContent = "A save prompt is already open. Finish that one first.";
-    else st.textContent = "Saving isn't available here. Press and hold (or right-click) the card image to save it.";
+  if (!S.cardBlob){ st.textContent = "The card is still drawing. Try again in a moment."; return; }
+  const file = new File([S.cardBlob], "compareme-card.png", {type:"image/png"});
+  if (navigator.canShare && navigator.canShare({files:[file]})){
+    try { await navigator.share({files:[file], text:S.cardCaption}); st.textContent = "Shared."; return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
   }
+  const url = URL.createObjectURL(S.cardBlob), a = document.createElement("a");
+  a.href = url; a.download = "compareme-card.png"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  st.textContent = "Card saved. Post it wherever you like.";
 }
 async function copyCaption(){
   const st = $("share-status");
@@ -1501,48 +1603,43 @@ $("picks").addEventListener("change", e => {
 });
 $("save-card").addEventListener("click", saveCard);
 $("copy-cap").addEventListener("click", copyCaption);
+$("acct-btn").addEventListener("click", openAcct);
+$("acct-x").addEventListener("click", closeAcct);
+$("acct").addEventListener("click", e => { if (e.target === $("acct")) closeAcct(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("acct").hidden) closeAcct(); });
 
 (async () => {
-  const [db, user] = await Promise.all([
-    window.claude?.use ? window.claude.use("db") : null,
-    window.claude?.use ? window.claude.use("user") : null
-  ]);
-  S.db = db; S.uid = user ? await user.id() : null;
-  S.admin = user ? await user.canEdit() : false;
-  updateCount();
-  if (!db){ renderActive(); return; }
-  const lost = () => { $("count").textContent = "Lost the connection to shared answers. Reload to try again."; };
-  db.collection("responses").onSnapshot(snap => {
-    const raw = []; let mine = null;
-    for (const d of snap.docs){ if (d.id === S.uid) mine = d.data(); else raw.push(d.data()); }
-    S.rawReal = raw; S.rawMine = mine; recompute();
-    if (!S.loaded){
-      S.loaded = true;
-      if (S.saved){ fillForm(S.saved); $("remove").hidden = false; updateCount(); setTab("crowd"); return; }
-    }
-    updateCount(); renderActive();
-  }, lost);
-  db.doc("config/questions").onSnapshot(snap => {
-    const d = snap.exists ? snap.data() : {};
-    const raw = Array.isArray(d.items) ? d.items.slice(0,30) : [];
-    const seen = new Set();
-    S.custom = raw.map(cleanCustom).filter(q => q && !seen.has(q.id) && seen.add(q.id));
-    S.customRaw = S.custom.map(q => q.type === "num" ? {id:q.id,label:q.label,type:q.type,unit:q.unit,fromKey:q.fromKey} : {id:q.id,label:q.label,type:q.type,options:q.options,fromKey:q.fromKey});
-    S.dismissed = Array.isArray(d.dismissed) ? d.dismissed.filter(x => typeof x === "string").slice(0,500) : [];
-    const key = S.custom.map(q => q.id).join(",");
-    recompute();
-    if (key !== S.cfgKey){ S.cfgKey = key; rebuildForm(); if (C.cv) buildLens(); }
-    renderActive();
-  }, () => {});
-  db.collection("suggestions").onSnapshot(snap => {
-    S.sugDocs = snap.docs.map(d => ({id:d.id, data:d.data() || {}}));
-    const mine = S.sugDocs.find(d => d.id === S.uid);
-    if (mine) S.mySug = {items:(Array.isArray(mine.data.items)?mine.data.items:[]).map(cleanSug).filter(Boolean), votes:Array.isArray(mine.data.votes)?mine.data.votes.filter(v=>typeof v==="string"):[]};
-    if (S.tab === "ideas") renderIdeas();
-  }, () => {});
+  const draft = loadDraft();
+  if (draft){ fillForm(draft); S.dirty = true; }
+  if (CFG.supabaseUrl && CFG.supabaseKey && window.supabase && window.supabase.createClient){
+    S.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
+    const {data} = await S.sb.auth.getSession();
+    const u = data && data.session ? data.session.user : null;
+    S.user = u; S.uid = u ? u.id : null; updateAcctBtn();
+    if (u) S.admin = !!(await S.sb.rpc("cm_is_admin")).data;
+    S.sb.auth.onAuthStateChange((ev, session) => {
+      const nu = session && session.user || null;
+      if ((nu ? nu.id : null) === S.uid){ S.user = nu; return; }
+      S.user = nu; S.uid = nu ? nu.id : null; updateAcctBtn();
+      setTimeout(async () => {
+        S.admin = nu ? !!(await S.sb.rpc("cm_is_admin")).data : false;
+        if (!nu){ S.rawMine = null; S.saved = null; }
+        if (nu && !$("acct").hidden) closeAcct();
+        await loadCrowd(); loadSuggestions();
+        if (nu && S.dirty) setStatus("You're signed in. Save your answers to join the crowd.");
+      }, 0);
+    });
+    await loadQuestions();
+    await Promise.all([loadCrowd(), loadSuggestions()]);
+    let lastRefresh = Date.now();
+    const refresh = () => { if (document.visibilityState !== "visible" || Date.now() - lastRefresh < 30000) return; lastRefresh = Date.now(); loadCrowd(); loadSuggestions(); };
+    document.addEventListener("visibilitychange", refresh);
+    setInterval(refresh, 90000);
+  } else {
+    updateAcctBtn(); updateCount(); renderActive();
+  }
 })();
 })();
 </script>
-
 </body>
 </html>
