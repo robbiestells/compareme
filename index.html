@@ -204,6 +204,15 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .sug-actions{display:flex;gap:6px;flex-wrap:wrap}
 .badge{font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--muted);align-self:flex-start}
 .badge.on{background:var(--accent);color:var(--accent-ink)}
+.badge.warn{background:transparent;border:1px solid var(--line)}
+.adm{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.adm-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.adm-top .meta{font-size:13px;color:var(--muted)}
+.adm .field{width:100%}
+.adm-row{display:flex;gap:6px;flex-wrap:wrap}
+#adm-filter .chip{cursor:pointer}
+#adm-status{flex:none}
+#adm-status:empty{display:none}
 @media (prefers-reduced-motion:no-preference){.bar .fill,.meter i{transition:width .35s ease}}
 </style>
 
@@ -222,6 +231,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <button class="tab" role="tab" data-tab="matches" aria-selected="false">Matches</button>
     <button class="tab" role="tab" data-tab="share" aria-selected="false">Share</button>
     <button class="tab" role="tab" data-tab="ideas" aria-selected="false">Ideas</button>
+    <button class="tab" role="tab" data-tab="admin" aria-selected="false" id="tab-admin" hidden>Admin</button>
   </nav>
 
   <div class="demo-banner" id="demo-banner" hidden><span><b>Sample crowd.</b> These 320 people are made up so you can try things out. Real people replace them once 3 or more have answered.</span><label class="switch"><input type="checkbox" id="demo-toggle"> Use sample crowd</label></div>
@@ -326,6 +336,16 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
       </div>
     </div>
     <div class="stack" id="sug-list"></div>
+  </section>
+
+  <section id="view-admin" class="narrow" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Review suggestions</h2><button class="btn ghost sm" id="adm-refresh" type="button">Refresh</button></div>
+      <p class="hint">Approve a suggestion to add it to the survey for everyone. You can tidy the wording and choices first. Dismissed ones are hidden from the public board and can be restored.</p>
+      <div class="chips" id="adm-filter" role="group" aria-label="Show"></div>
+      <div class="status" id="adm-status" role="status"></div>
+    </div>
+    <div class="stack" id="adm-list"></div>
   </section>
 </div>
 
@@ -1336,17 +1356,22 @@ function cleanSugRow(x){
   else { s.options = cleanOpts(x.options); if (s.options.length < 2) return null; }
   return s;
 }
+// The database tables come from supabase/setup.sql. If it hasn't been run, every call fails with
+// "not found in the schema cache"; say so plainly instead of "try again".
+function isMissing(e){ return !!e && /PGRST20[25]|42P01|42883/.test(String(e.code || "")) || /schema cache|does not exist/i.test(String(e && e.message || "")); }
+const SETUP_MSG = "compareme's database isn't set up yet. Run supabase/setup.sql in the Supabase SQL Editor (see the README), then reload.";
 async function loadSuggestions(){
   if (!S.sb) return;
   const {data, error} = await S.sb.rpc("cm_get_suggestions");
-  if (error) return;
+  if (error){ if (isMissing(error)){ S.dbMissing = true; if (S.tab === "ideas") renderIdeas(); } return; }
+  S.dbMissing = false;
   S.sugs = (data || []).map(cleanSugRow).filter(Boolean);
   if (S.tab === "ideas") renderIdeas();
 }
 async function loadQuestions(){
   if (!S.sb) return;
   const {data, error} = await S.sb.from("cm_questions").select("id,label,type,unit,options,from_suggestion").order("created_at");
-  if (error) return;
+  if (error){ if (isMissing(error)) S.dbMissing = true; return; }
   const seen = new Set();
   S.custom = (data || []).slice(0,30).map(r => cleanCustom({...r, fromKey: r.from_suggestion || ""})).filter(q => q && !seen.has(q.id) && seen.add(q.id));
   const key = S.custom.map(q => q.id).join(",");
@@ -1356,6 +1381,9 @@ async function loadQuestions(){
 function renderIdeas(){
   if (!S.sb){
     $("sug-list").innerHTML = `<div class="notice"><h3>Suggestions need the database</h3><p class="empty">This copy of compareme isn't connected to a database, so suggestions and votes are turned off.</p></div>`; return;
+  }
+  if (S.dbMissing){
+    $("sug-list").innerHTML = `<div class="notice"><h3>Suggestions aren't switched on yet</h3><p class="empty">${esc(SETUP_MSG)}</p></div>`; return;
   }
   const list = S.sugs.slice().sort((a,b) => b.votes - a.votes);
   if (!list.length){
@@ -1384,6 +1412,7 @@ function bindIdeas(){
     $("sug-unit").hidden = t !== "num"; $("sug-opts").hidden = t === "num";
   }));
   $("sug-add").addEventListener("click", async () => {
+    if (S.dbMissing){ sugStatus(SETUP_MSG, true); return; }
     if (needSignIn("Sign in to suggest a question.")) return;
     const text = $("sug-text").value.trim(), type = document.querySelector('input[name="sug-type"]:checked').value;
     if (text.length < 8){ sugStatus("Write the question out in full, at least a few words.", true); return; }
@@ -1394,7 +1423,12 @@ function bindIdeas(){
     $("sug-add").disabled = true; sugStatus("Sending…");
     const {error} = await S.sb.from("cm_suggestions").insert(row);
     $("sug-add").disabled = false;
-    if (error){ sugStatus("Couldn't submit that just now. Try again.", true); return; }
+    if (error){
+      if (isMissing(error)){ S.dbMissing = true; sugStatus(SETUP_MSG, true); renderIdeas(); return; }
+      if (/limit reached/i.test(error.message || "")){ sugStatus("You've reached 20 suggestions. Delete one to add another.", true); return; }
+      if (/JWT|401|403|row-level security/i.test((error.message || "") + (error.code || ""))){ sugStatus("Your sign-in expired. Sign out and back in, then try again.", true); return; }
+      sugStatus("Couldn't submit that (" + (error.message || "network error").slice(0, 80) + "). Try again.", true); return;
+    }
     sugStatus("Thanks. Your suggestion is up for votes.");
     $("sug-text").value = ""; $("sug-opts").value = ""; $("sug-unit").value = "";
     loadSuggestions();
@@ -1435,10 +1469,80 @@ function bindIdeas(){
   });
 }
 
+/* ---------- admin: review and approve suggested questions ----------
+   Shown only when cm_is_admin() says so (the server enforces it too: cm_admin_suggestions returns
+   nothing and the write policies refuse non-admins). */
+let admFilter = "open", admRows = [];
+function admStatus(m, err){ const el = $("adm-status"); el.textContent = m; el.classList.toggle("err", !!err); }
+async function loadAdmin(keep){
+  if (!S.sb || !S.admin) return;
+  if (!keep) admStatus("Loading…");
+  const {data, error} = await S.sb.rpc("cm_admin_suggestions");
+  if (error){ admStatus(isMissing(error) ? "Run the latest supabase/setup.sql in Supabase to turn on the admin view." : "Couldn't load suggestions. Try Refresh.", true); admRows = []; renderAdmin(); return; }
+  admRows = (data || []).filter(r => r && typeof r.id === "string").map(r => ({...r, votes: +r.votes || 0, options: Array.isArray(r.options) ? r.options.filter(o => typeof o === "string") : []}));
+  if (!keep) admStatus(""); renderAdmin();
+}
+function renderAdmin(){
+  const counts = {open:0, added:0, dismissed:0}; admRows.forEach(r => counts[r.status] = (counts[r.status] || 0) + 1);
+  $("adm-filter").innerHTML = [["open","Pending"],["added","In the survey"],["dismissed","Dismissed"]].map(([k,l]) =>
+    `<label class="chip"><input type="radio" name="adm-f" value="${k}" ${admFilter===k?"checked":""}><span>${l} · ${counts[k]||0}</span></label>`).join("");
+  const rows = admRows.filter(r => r.status === admFilter).sort((a,b) => admFilter === "open" ? (b.votes - a.votes) || (a.created_at < b.created_at ? 1 : -1) : (a.created_at < b.created_at ? 1 : -1));
+  if (!rows.length){ $("adm-list").innerHTML = `<div class="notice"><p class="empty">${admFilter === "open" ? "Nothing waiting for review." : "Nothing here."}</p></div>`; return; }
+  const when = d => { try { return new Date(d).toLocaleDateString(undefined, {month:"short", day:"numeric"}); } catch { return ""; } };
+  const typeName = {num:"Number", one:"Pick one", many:"Pick several"};
+  $("adm-list").innerHTML = rows.map(r => {
+    const editable = r.status === "open";
+    const extra = r.type === "num"
+      ? (editable ? `<input class="field" data-f="unit" maxlength="20" value="${esc(r.unit || "")}" placeholder="Unit (optional)">` : (r.unit ? `<span class="sug-meta">Unit: ${esc(r.unit)}</span>` : ""))
+      : (editable ? `<input class="field" data-f="options" maxlength="400" value="${esc(r.options.join(", "))}" placeholder="Choices, separated by commas">` : `<span class="sug-meta">${esc(r.options.join(" · "))}</span>`);
+    const actions = r.status === "open"
+      ? `<button class="btn sm" data-adm="approve" type="button">Approve &amp; add to survey</button><button class="btn ghost sm" data-adm="dismiss" type="button">Dismiss</button>`
+      : r.status === "added" ? `<button class="btn ghost sm" data-adm="unadd" type="button">Remove from survey</button>`
+      : `<button class="btn ghost sm" data-adm="restore" type="button">Restore to pending</button>`;
+    return `<div class="adm" data-id="${esc(r.id)}"><div class="adm-top"><span class="badge${r.status==="added"?" on":""}">${typeName[r.type] || r.type}</span><span class="meta">${r.votes} vote${r.votes===1?"":"s"} · ${when(r.created_at)}</span></div>
+      ${editable ? `<input class="field" data-f="text" maxlength="140" value="${esc(r.text)}" aria-label="Question wording">` : `<p>${esc(r.text)}</p>`}
+      ${extra}<div class="adm-row">${actions}</div></div>`;
+  }).join("");
+}
+function bindAdmin(){
+  $("adm-refresh").addEventListener("click", () => loadAdmin());
+  $("adm-filter").addEventListener("change", e => { if (e.target.name === "adm-f"){ admFilter = e.target.value; renderAdmin(); } });
+  $("adm-list").addEventListener("click", async e => {
+    const b = e.target.closest("button[data-adm]"); if (!b) return;
+    const card = b.closest(".adm"), r = admRows.find(x => x.id === card.dataset.id); if (!r) return;
+    const act = b.dataset.adm; let error = null;
+    b.disabled = true; admStatus("Saving…");
+    if (act === "approve"){
+      const text = (card.querySelector('[data-f="text"]').value || "").trim().slice(0,140);
+      if (text.length < 8){ admStatus("The question needs at least a few words.", true); b.disabled = false; return; }
+      let unit = null, options = null;
+      if (r.type === "num") unit = (card.querySelector('[data-f="unit"]').value || "").trim().slice(0,20);
+      else { options = cleanOpts(card.querySelector('[data-f="options"]').value.split(",")); if (options.length < 2){ admStatus("Add at least 2 choices.", true); b.disabled = false; return; } }
+      if (S.custom.length >= 30){ admStatus("The survey already has 30 community questions. Remove one first.", true); b.disabled = false; return; }
+      ({error} = await S.sb.from("cm_suggestions").update({text, unit, options}).eq("id", r.id));
+      if (!error) ({error} = await S.sb.from("cm_questions").insert({id:"c_" + rid(), label:text, type:r.type, unit: r.type === "num" ? (unit || "") : null, options, from_suggestion:r.id}));
+      if (!error) ({error} = await S.sb.from("cm_suggestions").update({status:"added"}).eq("id", r.id));
+      if (!error) admStatus("Approved. Everyone now sees it on the You tab.");
+    } else if (act === "dismiss"){
+      ({error} = await S.sb.from("cm_suggestions").update({status:"dismissed"}).eq("id", r.id));
+      if (!error) admStatus("Dismissed. It's hidden from the public board.");
+    } else if (act === "unadd"){
+      ({error} = await S.sb.from("cm_questions").delete().eq("from_suggestion", r.id));
+      if (!error) ({error} = await S.sb.from("cm_suggestions").update({status:"open"}).eq("id", r.id));
+      if (!error) admStatus("Removed from the survey and back to pending. Answers already given are kept but hidden.");
+    } else if (act === "restore"){
+      ({error} = await S.sb.from("cm_suggestions").update({status:"open"}).eq("id", r.id));
+      if (!error) admStatus("Restored to pending.");
+    }
+    if (error){ admStatus("Couldn't save that (" + (error.message || "network error").slice(0, 80) + ").", true); b.disabled = false; return; }
+    await Promise.all([loadQuestions(), loadSuggestions(), loadAdmin(true)]);
+  });
+}
+
 /* ---------- tabs & status ---------- */
 function renderActive(){
   if (S.demoAuto){ S.useDemo = S.real.length < MIN_GROUP; $("demo-toggle").checked = S.useDemo; }
-  $("demo-banner").hidden = (!S.useDemo && S.real.length >= MIN_GROUP) || S.tab === "form" || S.tab === "ideas";
+  $("demo-banner").hidden = (!S.useDemo && S.real.length >= MIN_GROUP) || S.tab === "form" || S.tab === "ideas" || S.tab === "admin";
   if (S.tab === "crowd"){ relayout(); renderCompare(); }
   else if (S.tab === "matches") renderMatches();
   else if (S.tab === "share") renderShare();
@@ -1447,7 +1551,10 @@ function renderActive(){
 function setTab(t){
   S.tab = t;
   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-  ["form","crowd","matches","share","ideas"].forEach(v => $("view-" + v).hidden = v !== t);
+  if (t === "admin" && !S.admin) t = S.tab = "ideas";
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  ["form","crowd","matches","share","ideas","admin"].forEach(v => $("view-" + v).hidden = v !== t);
+  if (t === "admin") loadAdmin();
   if (t === "crowd"){ initStage(); buildLens(); startLoop(); if (C.ready) resizeStage(); }
   else { stopLoop(); stopTour(); }
   renderActive();
@@ -1463,7 +1570,7 @@ function updateCount(){
 const CFG = window.COMPAREME_CONFIG || {};
 function openAcct(){ renderAcct(); $("acct").hidden = false; setTimeout(() => { const i = $("acct-email"); if (i) i.focus(); }, 30); }
 function closeAcct(){ $("acct").hidden = true; }
-function updateAcctBtn(){ $("acct-btn").textContent = S.user ? "Account" : "Sign in"; }
+function updateAcctBtn(){ $("acct-btn").textContent = S.user ? "Account" : "Sign in"; const t = $("tab-admin"); if (t) t.hidden = !S.admin; if (!S.admin && S.tab === "admin") setTab("ideas"); }
 function renderAcct(){
   const box = $("acct-body");
   if (!S.sb){
@@ -1504,7 +1611,7 @@ async function loadCrowd(){
     uid ? S.sb.from("cm_responses").select("demo,answers").eq("user_id", uid).maybeSingle() : Promise.resolve({data:null})
   ]);
   if (uid !== S.uid) return;
-  if (crowd.error){ $("count").textContent = "Couldn't reach the crowd. Reload to try again."; return; }
+  if (crowd.error){ if (isMissing(crowd.error)) S.dbMissing = true; $("count").textContent = S.dbMissing ? "The database isn't set up yet, so you're seeing the sample crowd." : "Couldn't reach the crowd. Reload to try again."; return; }
   S.rawReal = Array.isArray(crowd.data) ? crowd.data.slice(0, 5000) : [];
   S.rawMine = mine.data || null;
   recompute();
@@ -1572,7 +1679,7 @@ readColors();
 const reColor = () => readColors();
 try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reColor); } catch {}
 new MutationObserver(reColor).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
-buildForm(); buildFilters(); bindIdeas(); startStrip();
+buildForm(); buildFilters(); bindIdeas(); bindAdmin(); startStrip();
 $("form").addEventListener("click", e => {
   const inp = e.target.closest(".chip")?.querySelector("input[type=radio]");
   if (!inp || e.target !== inp) return;
@@ -1616,13 +1723,13 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("acct")
     const {data} = await S.sb.auth.getSession();
     const u = data && data.session ? data.session.user : null;
     S.user = u; S.uid = u ? u.id : null; updateAcctBtn();
-    if (u) S.admin = !!(await S.sb.rpc("cm_is_admin")).data;
+    if (u){ S.admin = !!(await S.sb.rpc("cm_is_admin")).data; updateAcctBtn(); }
     S.sb.auth.onAuthStateChange((ev, session) => {
       const nu = session && session.user || null;
       if ((nu ? nu.id : null) === S.uid){ S.user = nu; return; }
       S.user = nu; S.uid = nu ? nu.id : null; updateAcctBtn();
       setTimeout(async () => {
-        S.admin = nu ? !!(await S.sb.rpc("cm_is_admin")).data : false;
+        S.admin = nu ? !!(await S.sb.rpc("cm_is_admin")).data : false; updateAcctBtn();
         if (!nu){ S.rawMine = null; S.saved = null; }
         if (nu && !$("acct").hidden) closeAcct();
         await loadCrowd(); loadSuggestions();

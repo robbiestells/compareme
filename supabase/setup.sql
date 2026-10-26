@@ -46,10 +46,18 @@ create table if not exists public.cm_admins (
 );
 alter table public.cm_admins enable row level security;
 
+-- Admins by email: anyone signed in with one of these (verified) addresses is an admin.
+create table if not exists public.cm_admin_emails (
+  email text primary key check (email = lower(email))
+);
+alter table public.cm_admin_emails enable row level security;
+insert into public.cm_admin_emails (email) values ('robbiestells@gmail.com') on conflict do nothing;
+
 create or replace function public.cm_is_admin()
 returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.cm_admins where user_id = auth.uid());
+  select exists (select 1 from public.cm_admins where user_id = auth.uid())
+      or exists (select 1 from public.cm_admin_emails where email = lower(coalesce(auth.jwt() ->> 'email', '')));
 $$;
 grant execute on function public.cm_is_admin() to anon, authenticated;
 
@@ -142,9 +150,25 @@ create policy "Anyone reads questions" on public.cm_questions for select to anon
 create policy "Admins write questions" on public.cm_questions for all to authenticated using (public.cm_is_admin()) with check (public.cm_is_admin());
 
 -- ---------------------------------------------------------------------------
--- Make yourself the admin: sign in on the site once, then run this with your
--- own email address.
+-- Admin view: every suggestion, including dismissed ones, with vote counts and
+-- whether it's live in the survey. Returns nothing for non-admins. Never
+-- returns who suggested or voted.
 -- ---------------------------------------------------------------------------
--- insert into public.cm_admins (user_id)
--- select id from auth.users where email = 'you@example.com'
--- on conflict do nothing;
+create or replace function public.cm_admin_suggestions()
+returns table (id uuid, text text, type text, unit text, options jsonb, status text,
+               created_at timestamptz, votes integer, question_id text)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.text, s.type, s.unit, s.options, s.status, s.created_at,
+         (select count(*) from public.cm_votes v where v.suggestion_id = s.id)::integer,
+         (select q.id from public.cm_questions q where q.from_suggestion = s.id limit 1)
+  from public.cm_suggestions s
+  where public.cm_is_admin()
+  order by s.created_at desc
+  limit 1000;
+$$;
+grant execute on function public.cm_admin_suggestions() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- More admins: add their email here (lowercase), or by user id:
+--   insert into public.cm_admin_emails (email) values ('someone@example.com') on conflict do nothing;
+-- ---------------------------------------------------------------------------
