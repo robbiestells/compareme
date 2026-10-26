@@ -1,0 +1,1548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<meta name="description" content="Answer questions about yourself and see where you fit in the crowd.">
+<title>compareme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+</head>
+<body>
+<style>
+/* Layout: the crowd is the stage. A night arena (same in both themes) holds every figure; you are the amber one under the spotlight. Forms stay in a narrow column around it. */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#141B26; --muted:#5B6676; --line:#DDE2EA;
+  --peer:#B7C0CE; --accent:#2340C8; --accent-ink:#FFFFFF; --you:#E39B12; --you-ink:#7A4F00;
+  --soft:#E8ECF3; --demo-bg:#FFF3D9; --bad:#B42318;
+  /* the arena: deliberately night-time in both themes */
+  --stage:#0D131E; --stage-floor:#1A2333; --stage-peer:#3C485D; --stage-peer-hi:#93A8CF;
+  --stage-you:#F2B33D; --stage-ink:#EEF2F8; --stage-muted:#8C99AD; --stage-panel:rgba(20,28,42,.82); --stage-line:#2A3548;
+  --f-display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-num:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0A0F17; --surface:#141B26; --ink:#E7ECF3; --muted:#97A3B4; --line:#253042;
+  --peer:#46536A; --accent:#8EA2FF; --accent-ink:#0F141C; --you:#F2B33D; --you-ink:#F7CF7E;
+  --soft:#1C2533; --demo-bg:#2A2210; --bad:#FF8A7A; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0A0F17; --surface:#141B26; --ink:#E7ECF3; --muted:#97A3B4; --line:#253042;
+  --peer:#46536A; --accent:#8EA2FF; --accent-ink:#0F141C; --you:#F2B33D; --you-ink:#F7CF7E;
+  --soft:#1C2533; --demo-bg:#2A2210; --bad:#FF8A7A; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 64px}
+.narrow{max-width:720px;margin-inline:auto}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+p{margin:0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{display:flex;flex-direction:column;gap:6px;padding-block:6px 10px}
+.mark{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.mark h1{font-size:clamp(34px,6vw,52px);font-weight:800;letter-spacing:-.03em;line-height:1}
+.mark h1 span{color:var(--you)}
+.count{font-family:var(--f-num);font-size:13px;color:var(--muted)}
+.strip{display:block;width:100%;max-width:100%;min-width:0;height:46px}
+.lede{color:var(--muted);max-width:56ch}
+
+/* tabs */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:4px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.tab{flex:1;min-width:0;border:0;background:transparent;padding:9px 4px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+
+/* form bits */
+.section{display:flex;flex-direction:column;gap:18px;margin-bottom:30px}
+.section h2{font-size:20px;font-weight:700;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.section h2 small{font-family:var(--f-body);font-size:13px;font-weight:400;color:var(--muted)}
+.q{display:flex;flex-direction:column;gap:8px}
+.q > .ql{font-weight:700}
+.hint{font-size:13px;color:var(--muted);font-weight:400}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{position:relative;flex:none}
+.chip input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.chip span{display:block;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:14px;cursor:pointer;user-select:none;white-space:nowrap}
+.chip input:checked + span{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.num{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.field{padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);width:100%;min-width:0}
+.num input{width:160px;max-width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-family:var(--f-num);font-size:15px}
+.num .unit{color:var(--muted);font-size:14px}
+.savebar{position:sticky;bottom:0;padding-block:12px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.btn{border:0;border-radius:10px;padding:11px 18px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+.btn.sm{padding:7px 12px;font-size:14px}
+.btn.amber{background:var(--you);color:#141B26}
+.btn:disabled{opacity:.5;cursor:default}
+.status{font-size:14px;color:var(--muted);flex:1 1 200px;min-width:0}
+.status.err{color:var(--bad)}
+.privacy{font-size:13px;color:var(--muted);background:var(--soft);border-radius:12px;padding:12px 14px;margin:0 0 24px}
+
+/* crowd stage */
+.lensrow{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+@media (max-width:560px){.lensrow{flex-wrap:wrap}.lensrow .lensbar{flex-basis:100%}.lensrow #tour-btn{order:2}}
+.lensbar{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin;flex:1;min-width:0}
+.lgrp{flex:none;align-self:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 4px 0 8px}
+.subopts{margin:-2px 0 10px}
+.stage{position:relative;height:clamp(400px,66vh,660px);border-radius:22px;overflow:hidden;background:var(--stage);isolation:isolate}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;display:block}
+.stage canvas.dragging{cursor:grabbing}
+.cap{position:absolute;left:0;top:0;padding:18px 20px 0;pointer-events:none;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 70px)}
+.cap h2{font-size:clamp(21px,3.3vw,32px);color:var(--stage-ink);font-weight:800;line-height:1.08;letter-spacing:-.015em;max-width:22ch}
+.cap h2 b{color:var(--stage-you)}
+.cap p{color:var(--stage-muted);font-size:14px;max-width:46ch}
+.tourbar{display:flex;align-items:center;gap:8px;pointer-events:auto;flex-wrap:wrap}
+.tourbar .pips{display:flex;gap:5px}
+.tourbar .pips i{width:18px;height:4px;border-radius:2px;background:var(--stage-line)}
+.tourbar .pips i.on{background:var(--stage-you)}
+.sbtn{border:1px solid var(--stage-line);background:var(--stage-panel);color:var(--stage-ink);border-radius:10px;padding:6px 11px;font-size:13px;font-weight:700;cursor:pointer}
+.ctrl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px}
+.ctrl .sbtn{width:42px;height:42px;padding:0;display:grid;place-items:center;font-size:18px}
+.ctrl .sbtn svg{width:18px;height:18px}
+.zoombar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:14px;background:var(--stage-panel);border:1px solid var(--stage-line);color:var(--stage-muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.zoombar input{flex:1;min-width:0;accent-color:var(--stage-you)}
+.zoombar b{color:var(--stage-you);font-weight:700}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:10px 2px 18px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+/* compare cards */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
+.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.panel-head h2{font-size:18px}
+.big{font-family:var(--f-display);font-size:30px;font-weight:800;line-height:1}
+.big small{font-family:var(--f-body);font-size:14px;font-weight:400;color:var(--muted)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.fgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.fgrid select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);min-width:0;width:100%}
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.switch{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.switch input{width:18px;height:18px;accent-color:var(--you)}
+.demo-banner{background:var(--demo-bg);border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.demo-banner b{color:var(--you-ink)}
+.standouts{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.standouts h3{font-size:16px}
+.so-list{display:flex;flex-wrap:wrap;gap:8px}
+.so{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:14px}
+.so i{width:9px;height:9px;border-radius:50%;background:var(--you);flex:none}
+.cats{margin-bottom:14px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+@media (max-width:360px){.cgrid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--surface);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.card h3{font-size:16px;font-weight:700;min-width:0}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.verdict b{color:var(--you-ink)}
+.stats{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--f-num);font-size:12px;color:var(--muted)}
+.hist{width:100%;height:auto;display:block}
+.bars{display:flex;flex-direction:column;gap:6px}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:10px;align-items:center;font-size:14px}
+.bar .track{position:relative;background:var(--soft);border-radius:6px;height:26px;overflow:hidden;min-width:0}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--peer);border-radius:6px}
+.bar.mine .fill{background:var(--you)}
+.bar .lbl{position:absolute;left:10px;top:50%;transform:translateY(-50%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px)}
+.bar.mine .lbl{font-weight:700}
+.bar .pc{font-family:var(--f-num);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);font-size:14px}
+.notice{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.notice h3{font-size:18px}
+.sechead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:26px 0 12px;flex-wrap:wrap}
+.sechead h2{font-size:22px}
+
+/* matches */
+.points{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.points li{display:grid;grid-template-columns:10px minmax(0,1fr);gap:10px;align-items:baseline;font-size:15px}
+.points li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--you);transform:translateY(-1px)}
+.points.diff li::before{background:transparent;border:2px solid var(--peer)}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.mcard{background:var(--surface);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.mtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mtop b{font-family:var(--f-display);font-size:16px}
+.pctbadge{font-family:var(--f-num);font-size:13px;color:var(--you-ink)}
+.meter{height:6px;border-radius:3px;background:var(--soft);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--you)}
+.mini{display:flex;flex-wrap:wrap;gap:4px}
+.mini span{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--soft)}
+
+/* share */
+.share-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:640px){.share-wrap{grid-template-columns:minmax(0,1fr)}}
+.preview{width:100%;max-width:440px;aspect-ratio:4/5;border-radius:14px;background:var(--stage);display:block}
+.picks{display:flex;flex-direction:column;gap:6px}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;font-size:14px}
+.pick input{width:18px;height:18px;margin:0;accent-color:var(--you)}
+.pick .pv{font-family:var(--f-num);color:var(--you-ink)}
+.pick .ps{display:block;font-size:12px;color:var(--muted)}
+
+/* ideas */
+.sug{background:var(--surface);border-radius:14px;padding:14px;display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:start}
+.vote{display:flex;flex-direction:column;align-items:center;border:1px solid var(--line);border-radius:12px;padding:6px 0;background:transparent;cursor:pointer;font-family:var(--f-num);font-size:14px;width:56px}
+.vote svg{width:14px;height:14px}
+.vote[aria-pressed="true"]{background:var(--you);border-color:var(--you);color:#141B26}
+.vote:disabled{cursor:default;opacity:.7}
+.sug-body{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sug-body p{overflow-wrap:anywhere}
+.sug-meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.sug-actions{display:flex;gap:6px;flex-wrap:wrap}
+.badge{font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--muted);align-self:flex-start}
+.badge.on{background:var(--accent);color:var(--accent-ink)}
+@media (prefers-reduced-motion:no-preference){.bar .fill,.meter i{transition:width .35s ease}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="mark">
+      <h1>compare<span>me</span></h1>
+      <div class="count" id="count">Connecting…</div>
+    </div>
+    <canvas class="strip" id="strip" aria-hidden="true"></canvas>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="form" aria-selected="true">You</button>
+    <button class="tab" role="tab" data-tab="crowd" aria-selected="false">Crowd</button>
+    <button class="tab" role="tab" data-tab="matches" aria-selected="false">Matches</button>
+    <button class="tab" role="tab" data-tab="share" aria-selected="false">Share</button>
+    <button class="tab" role="tab" data-tab="ideas" aria-selected="false">Ideas</button>
+  </nav>
+
+  <div class="demo-banner" id="demo-banner" hidden><span><b>Sample crowd.</b> These 320 people are made up so you can try things out. Real people replace them once 3 or more have answered.</span><label class="switch"><input type="checkbox" id="demo-toggle"> Use sample crowd</label></div>
+
+  <section id="view-form" class="narrow">
+    <p class="lede" style="margin-bottom:14px">Answer a few questions about your life. Then step into the crowd and see where you blend in and where you stand apart.</p>
+    <p class="privacy">Answers are anonymous. No names or emails are stored with them, and results only appear when at least 3 people match. Skip any question you'd rather not answer.</p>
+    <form id="form" autocomplete="off"></form>
+    <div class="savebar">
+      <button class="btn" id="save" type="button">Save answers</button>
+      <button class="btn danger" id="remove" type="button" hidden>Remove my answers</button>
+      <div class="status" id="status" role="status"></div>
+    </div>
+  </section>
+
+  <section id="view-crowd" hidden>
+    <div class="lensrow">
+      <div class="lensbar" id="lensbar" role="radiogroup" aria-label="Sort the crowd by"></div>
+      <button class="btn amber sm" id="tour-btn" type="button">Where I stand out</button>
+    </div>
+    <div class="chips subopts" id="subopts" hidden></div>
+    <div class="stage" id="stage">
+      <canvas id="crowd" tabindex="0" role="img" aria-label="The crowd"></canvas>
+      <div class="cap">
+        <h2 id="cap-main">Where do you fit?</h2>
+        <p id="cap-sub"></p>
+        <div class="tourbar" id="tourbar" hidden>
+          <div class="pips" id="pips"></div>
+          <button class="sbtn" id="tour-prev" type="button">Back</button>
+          <button class="sbtn" id="tour-next" type="button">Next</button>
+          <button class="sbtn" id="tour-stop" type="button">Done</button>
+        </div>
+      </div>
+      <div class="ctrl">
+        <button class="sbtn" id="z-in" type="button" aria-label="Zoom in">+</button>
+        <button class="sbtn" id="z-out" type="button" aria-label="Zoom out">−</button>
+        <button class="sbtn" id="z-me" type="button" aria-label="Find me"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="3.2" fill="currentColor"/><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+        <button class="sbtn" id="z-fit" type="button" aria-label="See everyone"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2 6V2h4M12 2h4v4M16 12v4h-4M6 16H2v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <label class="zoombar" for="zoom"><span>Crowd</span><input type="range" id="zoom" min="0" max="1000" value="0" aria-label="Zoom from the whole crowd to you"><b>You</b></label>
+    </div>
+    <div class="legend"><span><i style="background:var(--stage-you)"></i>You</span><span><i style="background:var(--stage-peer-hi)"></i>Your group up close</span><span><i style="background:var(--stage-peer)"></i>Everyone else</span><span>Drag to move · scroll, pinch or the slider to zoom</span></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Who's in the crowd</h2>
+        <div class="big" id="pool-n">0 <small>people</small></div>
+      </div>
+      <div class="fgrid" id="fgrid"></div>
+      <div class="frow">
+        <button class="btn sm" id="match" type="button">People like me</button>
+        <button class="btn ghost sm" id="clear" type="button">Everyone</button>
+      </div>
+    </div>
+    <div class="standouts" id="standouts" hidden>
+      <h3>Where you stand out</h3>
+      <div class="so-list" id="so-list"></div>
+    </div>
+    <div class="sechead"><h2>All the numbers</h2></div>
+    <div class="cats chips" id="cats"></div>
+    <div class="cgrid" id="qcards"></div>
+  </section>
+
+  <section id="view-matches" class="narrow" hidden>
+    <div id="matches"></div>
+  </section>
+
+  <section id="view-share" hidden>
+    <div id="share-empty" class="narrow"></div>
+    <div class="share-wrap" id="share-main" hidden>
+      <img class="preview" id="card-img" alt="Your compareme card">
+      <div class="stack">
+        <div>
+          <h2 style="font-size:22px">Your card</h2>
+          <p class="hint" id="share-group"></p>
+        </div>
+        <div class="picks" id="picks"></div>
+        <p class="hint">The first stat you pick gets the big crowd graphic. Pick up to 4. Money stats are off by default; turn them on if you're happy to post them.</p>
+        <div class="frow">
+          <button class="btn" id="save-card" type="button">Save image</button>
+          <button class="btn ghost" id="copy-cap" type="button">Copy caption</button>
+        </div>
+        <div class="status" id="share-status" role="status"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-ideas" class="narrow" hidden>
+    <div class="panel">
+      <h2 style="font-size:18px">Suggest a question</h2>
+      <input class="field" id="sug-text" maxlength="140" placeholder="e.g. How many countries have you visited?">
+      <div class="chips">
+        <label class="chip"><input type="radio" name="sug-type" value="num" id="st-num" checked><span>Number</span></label>
+        <label class="chip"><input type="radio" name="sug-type" value="one" id="st-one"><span>Pick one</span></label>
+        <label class="chip"><input type="radio" name="sug-type" value="many" id="st-many"><span>Pick several</span></label>
+      </div>
+      <input class="field" id="sug-unit" maxlength="20" placeholder="Unit, e.g. countries (optional)">
+      <input class="field" id="sug-opts" maxlength="400" placeholder="Choices, separated by commas" hidden>
+      <div class="frow">
+        <button class="btn" id="sug-add" type="button">Submit suggestion</button>
+        <div class="status" id="sug-status" role="status"></div>
+      </div>
+    </div>
+    <div class="stack" id="sug-list"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+"use strict";
+const MIN_GROUP = 3, TOP_MATCHES = 10, DEMO_N = 320;
+const RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DEMOS = [
+  {id:"age", label:"Age", options:["18–24","25–34","35–44","45–54","55–64","65+"], req:true},
+  {id:"gender", label:"Gender", options:["Woman","Man","Non-binary","Prefer not to say"], req:true},
+  {id:"region", label:"Where you live", options:["US Northeast","US Midwest","US South","US West","Canada","UK & Ireland","Europe","Latin America","Asia","Africa","Oceania","Other"], req:true},
+  {id:"household", label:"Household", options:["Live alone","With partner","Partner & kids","Single parent","Roommates or family"]}
+];
+const BASE_CATS = [["Money","Money"],["Work","Work & education"],["Lifestyle","Lifestyle"],["Fun","Fun"]];
+const HOBBIES = ["Reading","Gaming","Music","Cooking","Fitness","Team sports","Hiking & outdoors","Travel","Art & crafts","Gardening","Film & TV","Coding"];
+const BUILTIN = [
+  {id:"salary",short:"Salary",cat:"Money",label:"Annual salary before tax",type:"num",fmt:"money",unit:"USD / year",min:0,max:5e6,hint:"Use 0 if you're not earning right now",more:"earn more than",below:"earn less than me"},
+  {id:"savings",short:"Savings rate",cat:"Money",label:"Share of income you save",type:"num",fmt:"pct",unit:"%",min:0,max:100,more:"save a bigger share than",below:"save a smaller share than me"},
+  {id:"housing",short:"Housing cost",cat:"Money",label:"Monthly rent or mortgage",type:"num",fmt:"money",unit:"USD / month",min:0,max:50000,more:"pay more for housing than",below:"pay less for housing than me"},
+  {id:"field",short:"Field",cat:"Work",label:"Field you work in",type:"one",options:["Tech","Healthcare","Education","Finance","Trades","Retail & hospitality","Creative & media","Government","Student","Not working","Other"]},
+  {id:"hours",short:"Work hours",cat:"Work",label:"Hours worked per week",type:"num",fmt:"int",unit:"hours",min:0,max:100,more:"work more hours than",below:"work fewer hours than me"},
+  {id:"edu",short:"Education",cat:"Work",label:"Highest education",type:"one",options:["High school","Some college","Trade certificate","Associate","Bachelor's","Master's","Doctorate or professional"]},
+  {id:"remote",short:"Work setup",cat:"Work",label:"Where you work",type:"one",options:["Fully remote","Hybrid","On-site","Not working"]},
+  {id:"hobbies",short:"Hobbies",cat:"Lifestyle",label:"Your hobbies",type:"many",options:HOBBIES,hint:"Pick all that apply"},
+  {id:"sleep",short:"Sleep",cat:"Lifestyle",label:"Sleep on a typical night",type:"num",fmt:"dec",unit:"hours",min:0,max:16,step:0.5,more:"sleep more than",below:"sleep less than me"},
+  {id:"exercise",short:"Exercise",cat:"Lifestyle",label:"Days you exercise per week",type:"num",fmt:"int",unit:"days",min:0,max:7,int:true,more:"exercise more often than",below:"exercise less often than me"},
+  {id:"screen",short:"Screen time",cat:"Lifestyle",label:"Screen time outside work",type:"num",fmt:"dec",unit:"hours / day",min:0,max:24,step:0.5,more:"spend more time on screens than",below:"spend less time on screens than me"},
+  {id:"pineapple",short:"Pineapple pizza",cat:"Fun",label:"Pineapple on pizza?",type:"one",options:["Love it","No way","Never tried"]},
+  {id:"chrono",short:"Morning or night",cat:"Fun",label:"Morning person or night owl?",type:"one",options:["Morning person","Night owl","Depends on the day"]},
+  {id:"pets",short:"Cats or dogs",cat:"Fun",label:"Cats or dogs?",type:"one",options:["Cats","Dogs","Both","Neither"]},
+  {id:"coffee",short:"Coffee",cat:"Fun",label:"Cups of coffee a day",type:"num",fmt:"int",unit:"cups",min:0,max:15,int:true,more:"drink more coffee than",below:"drink less coffee than me"}
+];
+let QS = BUILTIN.slice();
+const cats = () => S.custom.length ? [...BASE_CATS, ["Community","From the community"]] : BASE_CATS;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rid = () => Math.random().toString(36).slice(2, 10).padEnd(8, "0");
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+
+const S = {
+  db:null, uid:null, admin:false,
+  rawReal:[], rawMine:null, real:[], saved:null,
+  custom:[], customRaw:[], dismissed:[], cfgKey:"",
+  sugDocs:[], mySug:{items:[], votes:[]},
+  demo:null, useDemo:false, demoAuto:true,
+  filters:{}, cat:"All", dirty:false, loaded:false, readOnly:false, sugReadOnly:false, tab:"form",
+  cardSel:null, cardBlob:null, cardCaption:"",
+  sugQ:Promise.resolve(), cfgQ:Promise.resolve()
+};
+
+/* ---------- formatting ---------- */
+function fmt(q, v){
+  if (v == null) return "—";
+  switch(q.fmt){
+    case "money": return v >= 1e6 ? "$" + (v/1e6).toFixed(1) + "M" : v >= 1e4 ? "$" + Math.round(v/1e3) + "k" : "$" + Math.round(v).toLocaleString("en-US");
+    case "pct": return Math.round(v) + "%";
+    case "int": return Math.round(v) + " " + q.unit.split(" ")[0];
+    case "dec": return (Math.round(v*10)/10) + " h";
+    case "num": return Number(v).toLocaleString("en-US",{maximumFractionDigits:1}) + (q.unit ? " " + q.unit : "");
+  }
+  return String(v);
+}
+
+/* ---------- untrusted data cleaning ---------- */
+function cleanOpts(arr){ return [...new Set((Array.isArray(arr)?arr:[]).filter(o => typeof o === "string").map(o => o.trim().slice(0,40)).filter(Boolean))].slice(0,10); }
+function cleanCustom(x){
+  if (!x || typeof x !== "object") return null;
+  if (typeof x.id !== "string" || !/^c_[a-z0-9]{4,16}$/.test(x.id)) return null;
+  const label = typeof x.label === "string" ? x.label.trim().slice(0,140) : "";
+  if (!label || !["num","one","many"].includes(x.type)) return null;
+  const q = {id:x.id, cat:"Community", label, short: label.length > 26 ? label.slice(0,24) + "…" : label, type:x.type, custom:true, fromKey: typeof x.fromKey === "string" ? x.fromKey.slice(0,80) : ""};
+  if (q.type === "num"){ q.fmt = "num"; q.unit = typeof x.unit === "string" ? x.unit.trim().slice(0,20) : ""; q.min = 0; q.max = 1e7; q.step = "any"; }
+  else { q.options = cleanOpts(x.options); if (q.options.length < 2) return null; }
+  return q;
+}
+function clean(d){
+  if (!d || typeof d !== "object") return null;
+  const demo = {}, answers = {};
+  const sd = d.demo && typeof d.demo === "object" ? d.demo : {};
+  const sa = d.answers && typeof d.answers === "object" ? d.answers : {};
+  for (const x of DEMOS) if (x.options.includes(sd[x.id])) demo[x.id] = sd[x.id];
+  for (const q of QS){
+    const v = sa[q.id];
+    if (q.type === "num"){ if (typeof v === "number" && isFinite(v) && v >= q.min && v <= q.max) answers[q.id] = v; }
+    else if (q.type === "one"){ if (q.options.includes(v)) answers[q.id] = v; }
+    else if (Array.isArray(v)){ const a = [...new Set(v.filter(x => q.options.includes(x)))]; if (a.length) answers[q.id] = a; }
+  }
+  return {demo, answers};
+}
+function cleanSug(x){
+  if (!x || typeof x !== "object" || typeof x.id !== "string" || !/^[a-z0-9]{4,16}$/.test(x.id)) return null;
+  const text = typeof x.text === "string" ? x.text.trim().slice(0,140) : "";
+  if (!text || !["num","one","many"].includes(x.type)) return null;
+  const s = {id:x.id, text, type:x.type, at: typeof x.at === "string" ? x.at.slice(0,30) : ""};
+  if (s.type === "num") s.unit = typeof x.unit === "string" ? x.unit.trim().slice(0,20) : "";
+  else { s.options = cleanOpts(x.options); if (s.options.length < 2) return null; }
+  return s;
+}
+function recompute(){
+  QS = BUILTIN.concat(S.custom);
+  S.real = S.rawReal.map(clean).filter(Boolean);
+  S.saved = S.rawMine ? clean(S.rawMine) : null;
+}
+
+/* ---------- form ---------- */
+function chip(type, name, value, label){
+  return `<label class="chip"><input type="${type}" name="${name}" value="${esc(value)}"><span>${esc(label)}</span></label>`;
+}
+function buildForm(){
+  let h = `<div class="section"><h2>About you <small>used for filtering</small></h2>`;
+  for (const d of DEMOS){
+    h += `<div class="q"><div class="ql">${esc(d.label)}${d.req?"":' <span class="hint">optional</span>'}</div><div class="chips">${d.options.map(o=>chip("radio","d_"+d.id,o,o)).join("")}</div></div>`;
+  }
+  h += `</div>`;
+  for (const [cid, cname] of cats()){
+    h += `<div class="section"><h2>${esc(cname)}</h2>`;
+    for (const q of QS.filter(x=>x.cat===cid)){
+      h += `<div class="q"><div class="ql">${esc(q.label)}${q.hint?` <span class="hint">· ${esc(q.hint)}</span>`:""}</div>`;
+      if (q.type === "num"){
+        h += `<div class="num"><input type="number" id="q_${q.id}" name="q_${q.id}" inputmode="${q.int||q.fmt==="money"?"numeric":"decimal"}" min="${q.min}" max="${q.max}" step="${q.step||1}" placeholder="—">${q.unit?`<span class="unit">${esc(q.unit)}</span>`:""}</div>`;
+      } else {
+        h += `<div class="chips">${q.options.map(o=>chip(q.type==="many"?"checkbox":"radio","q_"+q.id,o,o)).join("")}</div>`;
+      }
+      h += `</div>`;
+    }
+    h += `</div>`;
+  }
+  $("form").innerHTML = h;
+}
+function markDirty(){ S.dirty = true; setStatus(""); }
+function readForm(){
+  const f = $("form"), demo = {}, answers = {};
+  for (const d of DEMOS){ const c = f.querySelector(`input[name="d_${d.id}"]:checked`); if (c) demo[d.id] = c.value; }
+  for (const q of QS){
+    if (q.type === "num"){
+      const el = f.querySelector(`#q_${q.id}`); if (!el) continue;
+      const raw = el.value.trim();
+      if (raw !== ""){ const v = Number(raw); if (isFinite(v)) answers[q.id] = Math.min(q.max, Math.max(q.min, q.int ? Math.round(v) : v)); }
+    } else if (q.type === "one"){
+      const c = f.querySelector(`input[name="q_${q.id}"]:checked`); if (c) answers[q.id] = c.value;
+    } else {
+      const vals = [...f.querySelectorAll(`input[name="q_${q.id}"]:checked`)].map(x=>x.value);
+      if (vals.length) answers[q.id] = vals;
+    }
+  }
+  return {demo, answers};
+}
+function fillForm(rec){
+  const f = $("form");
+  f.querySelectorAll("input").forEach(i => { if (i.type === "number") i.value = ""; else { i.checked = false; i.dataset.was = "0"; } });
+  if (!rec) return;
+  for (const d of DEMOS){ const v = rec.demo[d.id]; if (v) f.querySelectorAll(`input[name="d_${d.id}"]`).forEach(i => { if (i.value === v){ i.checked = true; i.dataset.was = "1"; } }); }
+  for (const q of QS){
+    const v = rec.answers[q.id]; if (v == null) continue;
+    if (q.type === "num"){ const el = f.querySelector(`#q_${q.id}`); if (el) el.value = v; }
+    else f.querySelectorAll(`input[name="q_${q.id}"]`).forEach(i => { if (q.type==="one" ? i.value === v : v.includes(i.value)){ i.checked = true; i.dataset.was = "1"; } });
+  }
+}
+function rebuildForm(){ const rec = S.dirty ? readForm() : S.saved; buildForm(); fillForm(rec); }
+
+/* ---------- sample people (client-side only, never stored) ---------- */
+function makeDemo(){
+  let s = 20261025;
+  const r = () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const n = () => Math.sqrt(-2*Math.log(r()||1e-9)) * Math.cos(2*Math.PI*r());
+  const pick = (arr, w) => { if (!w) return arr[Math.floor(r()*arr.length)]; let t = r()*w.reduce((a,b)=>a+b,0); for (let i=0;i<arr.length;i++){ t -= w[i]; if (t <= 0) return arr[i]; } return arr[arr.length-1]; };
+  const B = Object.fromEntries(BUILTIN.map(q => [q.id, q]));
+  const out = [];
+  for (let i = 0; i < DEMO_N; i++){
+    const ai = Math.floor(clamp(r()*6.4, 0, 5));
+    const demo = {age:DEMOS[0].options[ai], gender:pick(DEMOS[1].options,[47,47,4,2]), region:pick(DEMOS[2].options,[14,12,18,16,6,7,9,5,6,2,3,2]), household:pick(DEMOS[3].options,[22,26,30,6,16])};
+    const field = ai === 0 && r() < .35 ? "Student" : ai === 5 && r() < .6 ? "Not working" : pick(B.field.options.filter(o=>o!=="Student"&&o!=="Not working"));
+    const working = field !== "Student" && field !== "Not working";
+    const base = [38,62,78,84,80,60][ai] * 1000 * Math.exp(n()*0.45) * (field === "Tech" || field === "Finance" ? 1.4 : 1);
+    const salary = working ? Math.round(base/500)*500 : (r() < .5 ? 0 : Math.round(base*0.25/500)*500);
+    const hob = HOBBIES.filter((h,k) => r() < [.45,.35,.4,.4,.35,.15,.3,.3,.15,.12,.5,.12][k]);
+    out.push({demo, answers:{
+      salary, savings:Math.round(clamp(12 + ai*2 + n()*8, 0, 60)),
+      housing:Math.round(clamp((salary||24000)*0.28/12*Math.exp(n()*0.25), 350, 9000)/25)*25,
+      field, hours: working ? Math.round(clamp(41 + n()*7, 12, 75)) : (field==="Student" ? Math.round(clamp(10+n()*8,0,30)) : 0),
+      edu: pick(B.edu.options,[18,12,8,8,32,17,5]),
+      remote: working ? pick(["Fully remote","Hybrid","On-site"],[22,30,48]) : "Not working",
+      hobbies: hob.length ? hob : ["Film & TV"],
+      sleep: Math.round(clamp(7 + n()*0.9, 4, 10)*2)/2,
+      exercise: Math.round(clamp(2.8 + n()*1.9, 0, 7)),
+      screen: Math.round(clamp(3.6 + n()*1.5, 0.5, 11)*2)/2,
+      pineapple: pick(B.pineapple.options,[48,42,10]), chrono: pick(B.chrono.options,[34,38,28]), pets: pick(B.pets.options,[28,40,17,15]),
+      coffee: Math.round(clamp(1.6 + n()*1.3, 0, 8))
+    }});
+  }
+  return out;
+}
+
+/* ---------- shared helpers ---------- */
+function everyone(){ return S.useDemo ? (S.demo ||= makeDemo()) : S.real; }
+function inGroup(rec){ return DEMOS.every(d => !S.filters[d.id] || rec.demo[d.id] === S.filters[d.id]); }
+function pool(){ return everyone().filter(inGroup); }
+function myRecord(){ return S.dirty || !S.saved ? readForm() : S.saved; }
+function hasAnswers(me){ return Object.keys(me.answers).length > 0; }
+const median = s => s.length % 2 ? s[(s.length-1)/2] : (s[s.length/2-1] + s[s.length/2]) / 2;
+function pctOf(sorted, v){ const below = sorted.filter(x => x < v).length, eq = sorted.filter(x => x === v).length; return Math.round((below + eq/2) / sorted.length * 100); }
+function groupLabel(){ const parts = DEMOS.map(d => S.filters[d.id]).filter(Boolean); return parts.length ? parts.join(", ") : "everyone"; }
+function numBins(q, sorted, mine){
+  let edges = null;
+  if (q.int && q.max <= 15){ const hi = Math.max(sorted[sorted.length-1], mine ?? 0, 1); edges = Array.from({length: hi+1}, (_,i) => i); }
+  const q95 = sorted[Math.floor((sorted.length-1)*0.95)];
+  const hiC = Math.max(q95, mine ?? 0, q.fmt === "pct" ? 10 : 1);
+  const nb = edges ? edges.length : 18;
+  const binOf = v => edges ? Math.min(nb-1, Math.round(v)) : Math.min(nb-1, Math.floor(v / hiC * nb));
+  const label = b => edges ? fmt(q, b) : `${fmt(q, b*hiC/nb)}–${fmt(q, (b+1)*hiC/nb)}${b === nb-1 ? "+" : ""}`;
+  return {edges, hiC, nb, binOf, label, overflow: sorted[sorted.length-1] > hiC};
+}
+
+/* ---------- similarity ---------- */
+function similarity(me, p, scales){
+  let sum = 0, n = 0;
+  const shared = [];
+  for (const d of DEMOS){
+    const a = me.demo[d.id], b = p.demo[d.id];
+    if (!a || !b || a === "Prefer not to say") continue;
+    n++; if (a === b){ sum++; shared.push(d.id === "age" ? `Also ${a}` : a); }
+  }
+  for (const q of QS){
+    const a = me.answers[q.id], b = p.answers[q.id];
+    if (a == null || b == null) continue;
+    let s;
+    if (q.type === "num"){ s = 1 - Math.min(1, Math.abs(a-b) / scales[q.id]); if (s >= .85) shared.push(`Similar ${q.short ? q.short.toLowerCase() : "answer"}`); }
+    else if (q.type === "one"){ s = a === b ? 1 : 0; if (s) shared.push(a); }
+    else { const inter = a.filter(x => b.includes(x)); s = inter.length / new Set([...a, ...b]).size; inter.slice(0,2).forEach(x => shared.push(`Also into ${x.toLowerCase()}`)); }
+    sum += s; n++;
+  }
+  return {score: n ? sum/n : 0, n, shared};
+}
+function numScales(all){
+  const scales = {};
+  for (const q of QS) if (q.type === "num"){
+    const s = all.map(p => p.answers[q.id]).filter(v => v != null).sort((a,b)=>a-b);
+    const spread = s.length > 4 ? s[Math.floor(s.length*.9)] - s[Math.floor(s.length*.1)] : 0;
+    scales[q.id] = spread > 0 ? spread : Math.max(1, (Math.min(q.max, 100) - q.min) / 4);
+  }
+  return scales;
+}
+
+/* ---------- your stand-out stats (used by the tour and the share card) ---------- */
+function myStats(){
+  const P = pool(), me = myRecord(), out = [];
+  if (P.length < MIN_GROUP) return {P, out};
+  for (const q of QS){
+    const mine = me.answers[q.id]; if (mine == null) continue;
+    const ans = P.map(p => p.answers[q.id]).filter(v => v != null);
+    if (ans.length < MIN_GROUP) continue;
+    if (q.type === "num"){
+      const pct = pctOf([...ans].sort((a,b)=>a-b), mine);
+      out.push({q, lens:q.id, kind:"num", value:pct, big:`${pct}%`, line1:`of people ${q.below || "score lower than me on this"}`, line2:q.label, interest:Math.abs(pct-50), money:q.cat === "Money",
+        story: q.more ? `You ${q.more} <b>${pct}%</b> of this crowd` : `You're higher than <b>${pct}%</b> of this crowd`,
+        caption:`${pct}% of people ${q.below || "score lower than me on: " + q.label}`});
+    } else if (q.type === "one"){
+      const share = Math.round(ans.filter(v => v === mine).length / ans.length * 100);
+      out.push({q, lens:q.id, kind:"one", value:share, big:`${share}%`, line1:`also picked "${mine}"`, line2:q.label, interest:50-share, money:false,
+        story: share <= 25 ? `Only <b>${share}%</b> said “${esc(mine)}” like you` : `<b>${share}%</b> said “${esc(mine)}” like you`, caption:`Only ${share}% also picked "${mine}" for "${q.label}"`});
+    } else if (mine.length){
+      const rows = mine.map(o => [o, Math.round(ans.filter(v => v.includes(o)).length / ans.length * 100)]).sort((a,b)=>a[1]-b[1]);
+      const [o, share] = rows[0];
+      out.push({q, lens:q.id, opt:o, kind:"one", value:share, big:`${share}%`, line1:`also picked ${o}`, line2:q.label, interest:50-share, money:false,
+        story:`Only <b>${share}%</b> are into ${esc(o.toLowerCase())} like you`, caption:`Only ${share}% also picked ${o}`});
+    }
+  }
+  return {P, out};
+}
+
+/* =====================================================================
+   THE CROWD
+   ===================================================================== */
+const C = {
+  cv:null, g:null, w:0, h:0, dpr:1, ready:false,
+  ps:[], src:null, me:null, lens:"everyone", manyOpt:{},
+  L:{labels:[], axis:null, rings:null, bounds:{x0:-100,y0:-100,x1:100,y1:100}, main:"", far:"", near:""},
+  cam:{x:0,y:0,z:1}, tgt:{x:0,y:0,z:1}, fitZ:1, fitCx:0, fitCy:0, key:"", userZoom:false,
+  running:false, last:0, pointers:new Map(), pinch:null, sliding:false,
+  tour:null, tourTimers:[], zone:"", col:{}
+};
+const OY = 22; // screen offset so the crowd sits below the caption
+
+function hexRgb(h){ h = h.trim().replace("#",""); if (h.length === 3) h = h.split("").map(c=>c+c).join(""); const n = parseInt(h.slice(0,6),16) || 0; return [n>>16&255, n>>8&255, n&255]; }
+function readColors(){
+  const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
+  C.col = { stage:v("--stage"), floor:v("--stage-floor"), peer:hexRgb(v("--stage-peer")), hi:hexRgb(v("--stage-peer-hi")), you:v("--stage-you"),
+    ink:v("--stage-ink"), muted:v("--stage-muted"), line:v("--stage-line"), stageRgb:hexRgb(v("--stage")),
+    pagePeer:v("--peer"), pageYou:v("--you") };
+}
+function mix(a, b, t){ return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
+function rgba(c, a){ return `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`; }
+
+/* a person: feet at (x,y), s = pixels per unit */
+function fig(g, x, y, s){
+  g.beginPath();
+  g.moveTo(x-3.6*s, y);
+  g.lineTo(x-3.6*s, y-4.6*s);
+  g.quadraticCurveTo(x-3.6*s, y-8.6*s, x, y-8.6*s);
+  g.quadraticCurveTo(x+3.6*s, y-8.6*s, x+3.6*s, y-4.6*s);
+  g.lineTo(x+3.6*s, y);
+  g.closePath(); g.fill();
+  g.beginPath(); g.arc(x, y-11.4*s, 2.5*s, 0, 6.2832); g.fill();
+}
+
+function newPerson(rec, i){
+  const ph = (i * 2.399963) % 6.2832;
+  return {rec, x:(Math.cos(ph)*260), y:520 + (i%17)*12, tx:0, ty:0, a:0, ta:1, tint:0, tt:0, ph, shade:((i*37)%11)/11*0.22, start:0, mv:false};
+}
+function syncPeople(){
+  const arr = everyone();
+  if (!C.me) C.me = {x:0, y:560, tx:0, ty:0, start:0};
+  if (C.src === arr && C.ps.length === arr.length) return;
+  const old = C.ps;
+  C.ps = arr.map((rec,i) => old[i] ? Object.assign(old[i], {rec}) : newPerson(rec, i));
+  C.src = arr;
+}
+
+function sunflower(i, sp){ const r = sp*Math.sqrt(i+0.5), a = i*2.399963; return [r*Math.cos(a), r*Math.sin(a)*0.8]; }
+function setT(p, x, y, tint, a){ p.tx = x; p.ty = y; p.tt = tint; p.ta = a; }
+
+function layEveryone(G, me, main){
+  const N = G.length + 1, myIdx = Math.floor(N*0.38), sp = 10;
+  let k = 0;
+  for (let i = 0; i < N; i++){
+    const [x,y] = sunflower(i, sp);
+    if (i === myIdx) setT(C.me, x, y, 0, 1);
+    else setT(G[k++], x, y, 0, 1);
+  }
+  const R = sp*Math.sqrt(N+0.5);
+  const grp = groupLabel() === "everyone" ? "" : ` (${esc(groupLabel())})`;
+  return {labels:[], bounds:{x0:-R-14, x1:R+14, y0:-R*0.8-30, y1:R*0.8+14},
+    main: main || "Where do you fit?",
+    far: `You're one of ${N} people${grp}. Pick a question above and watch the crowd sort itself.`,
+    near: "Up close, you blend right in. Pick a question to see where you stand apart."};
+}
+
+function layNum(q, G, me){
+  const A = [], extra = [];
+  for (const p of G) (p.rec.answers[q.id] != null ? A : extra).push(p);
+  if (A.length < MIN_GROUP) return layEveryone(G, me, `Not enough answers to “${esc(q.short || q.label)}” yet`);
+  const mine = me.answers[q.id];
+  const sorted = A.map(p => p.rec.answers[q.id]).sort((a,b)=>a-b);
+  const B = numBins(q, sorted, mine);
+  const bins = Array.from({length:B.nb}, () => []);
+  A.forEach(p => bins[B.binOf(p.rec.answers[q.id])].push({p, v:p.rec.answers[q.id]}));
+  const myBin = mine != null ? B.binOf(mine) : -1;
+  if (myBin >= 0) bins[myBin].push({me:true, v:mine});
+  bins.forEach(b => b.sort((a,c) => a.v - c.v || (a.me ? -1 : c.me ? 1 : 0)));
+  const maxC = Math.max(...bins.map(b => b.length), 1);
+  let perRow = 1, best = 1e9;
+  for (let pr = 1; pr <= 10; pr++){
+    const w = B.nb*(pr*9.5+7), h = Math.ceil(maxC/pr)*13, d = Math.abs(h/w - 0.42);
+    if (d < best){ best = d; perRow = pr; }
+  }
+  const colW = perRow*9.5 + 7, total = B.nb*colW, x0 = -total/2;
+  bins.forEach((b, bi) => b.forEach((e, k) => {
+    const col = k % perRow, row = Math.floor(k / perRow);
+    const x = x0 + bi*colW + 3.5 + col*9.5 + 4.75, y = -row*13;
+    if (e.me) setT(C.me, x, y, 0, 1); else setT(e.p, x, y, bi === myBin ? 1 : 0, 1);
+  }));
+  const rows = Math.ceil(maxC/perRow);
+  const ticks = [];
+  for (let b = 0; b <= B.nb; b++){
+    if (B.edges){ if (b < B.nb) ticks.push({x: x0 + (b+0.5)*colW, label: String(B.edges[b])}); }
+    else ticks.push({x: x0 + b*colW, label: fmt(q, b*B.hiC/B.nb) + (b === B.nb && B.overflow ? "+" : "")});
+  }
+  const med = median(sorted);
+  const medX = B.edges ? x0 + (Math.round(med)+0.5)*colW : x0 + clamp(med/B.hiC, 0, 1)*total;
+  const labels = [];
+  let bx0 = x0 - 16;
+  if (mine == null){ setT(C.me, x0 - 34, 0, 0, 1); labels.push({x:x0-34, y:18, text:"Not answered", small:true}); bx0 = x0 - 76; }
+  const pct = mine != null ? pctOf(sorted, mine) : null;
+  return {
+    labels, axis:{x0, x1:x0+total, y:6, ticks, unit: B.edges ? q.unit : "", mark:{x:medX, label:`median ${fmt(q, med)}`}},
+    bounds:{x0:bx0, x1:x0+total+16, y0:-rows*13 - 30, y1:44}, extra,
+    main: mine == null ? `You haven't answered “${esc(q.short || q.label)}” yet` : (q.more ? `You ${q.more} <b>${pct}%</b> of this crowd` : `You're higher than <b>${pct}%</b> of this crowd`),
+    far: `${A.length} people, lined up by ${esc((q.short || q.label).toLowerCase())}. The median is ${esc(fmt(q, med))}.`,
+    near: mine == null ? "Answer it on the You tab to step into the line-up." : `Up close: you and ${bins[myBin].length - 1} others answered ${esc(B.label(myBin))}.`
+  };
+}
+
+function layClusters(groups){
+  const sp = 10, items = groups.map(gr => { const n = gr.members.length + (gr.hasMe ? 1 : 0); const R = sp*Math.sqrt(n+0.5) + 4; return {...gr, n, R}; });
+  const area = items.reduce((a, it) => a + (2*it.R+36)*(2*it.R*0.8+64), 0);
+  const maxW = Math.max(240, Math.sqrt(area)*1.9);
+  const rows = []; let cur = [], w = 0;
+  for (const it of items){ const iw = 2*it.R + 36; if (cur.length && w + iw > maxW){ rows.push(cur); cur = []; w = 0; } cur.push(it); w += iw; }
+  if (cur.length) rows.push(cur);
+  const labels = []; let y = 0, bx0 = 1e9, bx1 = -1e9;
+  rows.forEach(row => {
+    const rw = row.reduce((a,it) => a + 2*it.R + 36, 0), rh = Math.max(...row.map(it => 2*it.R*0.8));
+    let x = -rw/2;
+    const cy = y + rh/2 + 16;
+    row.forEach(it => {
+      const cx = x + it.R + 18;
+      let k = 0;
+      for (let i = 0; i < it.n; i++){
+        const [dx, dy] = sunflower(i, sp);
+        if (it.hasMe && i === 0) setT(C.me, cx+dx, cy+dy, 0, 1);
+        else setT(it.members[k++], cx+dx, cy+dy, it.strong ? 1 : 0, 1);
+      }
+      labels.push({x:cx, y:cy + it.R*0.8 + 22, text:it.label, sub:it.sub, strong:it.strong});
+      bx0 = Math.min(bx0, cx - it.R - 18); bx1 = Math.max(bx1, cx + it.R + 18);
+      x += 2*it.R + 36;
+    });
+    y += rh + 70;
+  });
+  return {labels, bounds:{x0:bx0, x1:bx1, y0:-14, y1:y - 10}};
+}
+function parkMe(L){
+  const y = (L.bounds.y0 + L.bounds.y1)/2;
+  setT(C.me, L.bounds.x0 - 20, y, 0, 1);
+  L.labels.push({x:L.bounds.x0 - 20, y:y + 18, text:"Not answered", small:true});
+  L.bounds.x0 -= 64;
+}
+
+function layOne(q, G, me){
+  const A = [], extra = [];
+  for (const p of G) (p.rec.answers[q.id] != null ? A : extra).push(p);
+  if (A.length < MIN_GROUP) return layEveryone(G, me, `Not enough answers to “${esc(q.short || q.label)}” yet`);
+  const mine = me.answers[q.id];
+  const groups = q.options.map(o => ({label:o, members:A.filter(p => p.rec.answers[q.id] === o), hasMe: o === mine, strong: o === mine}))
+    .filter(gr => gr.members.length || gr.hasMe).sort((a,b) => b.members.length - a.members.length);
+  groups.forEach(gr => gr.sub = `${Math.round(gr.members.length / A.length * 100)}%`);
+  const L = layClusters(groups);
+  if (mine == null) parkMe(L);
+  const top = groups[0], myG = groups.find(gr => gr.hasMe);
+  const share = myG ? Math.round(myG.members.length / A.length * 100) : 0;
+  return Object.assign(L, {extra,
+    main: mine == null ? `You haven't answered “${esc(q.short || q.label)}” yet` : share <= 25 ? `Only <b>${share}%</b> said “${esc(mine)}” like you` : `<b>${share}%</b> said “${esc(mine)}” like you`,
+    far: `${A.length} people, grouped by answer. Most said “${esc(top.label)}” (${top.sub}).`,
+    near: mine == null ? "Answer it on the You tab to join a group." : `Up close: you're standing with the ${myG.members.length} people who said “${esc(mine)}”.`});
+}
+
+function layMany(q, G, me){
+  const A = [], extra = [];
+  for (const p of G) (p.rec.answers[q.id] != null ? A : extra).push(p);
+  if (A.length < MIN_GROUP) return layEveryone(G, me, `Not enough answers to “${esc(q.short || q.label)}” yet`);
+  const mine = me.answers[q.id];
+  const countOf = o => A.filter(p => p.rec.answers[q.id].includes(o)).length;
+  let opt = C.manyOpt[q.id];
+  if (!q.options.includes(opt)) opt = mine && mine.length ? mine.slice().sort((a,b) => countOf(a) - countOf(b))[0] : q.options.slice().sort((a,b) => countOf(b) - countOf(a))[0];
+  C.manyOpt[q.id] = opt;
+  const yes = A.filter(p => p.rec.answers[q.id].includes(opt)), no = A.filter(p => !p.rec.answers[q.id].includes(opt));
+  const meYes = !!(mine && mine.includes(opt));
+  const pY = Math.round(yes.length / A.length * 100), lo = opt.toLowerCase();
+  const L = layClusters([
+    {label:`Into ${lo}`, sub:`${pY}%`, members:yes, hasMe: mine != null && meYes, strong: mine != null && meYes},
+    {label:`Not into ${lo}`, sub:`${100-pY}%`, members:no, hasMe: mine != null && !meYes, strong: mine != null && !meYes}
+  ]);
+  if (mine == null) parkMe(L);
+  return Object.assign(L, {extra,
+    main: mine == null ? `You haven't answered “${esc(q.short || q.label)}” yet` : meYes ? (pY <= 25 ? `Only <b>${pY}%</b> are into ${esc(lo)} like you` : `<b>${pY}%</b> are into ${esc(lo)} like you`) : `<b>${pY}%</b> are into ${esc(lo)}. You're not.`,
+    far: `${A.length} people, split by whether they're into ${esc(lo)}. Switch the hobby above the stage.`,
+    near: mine == null ? "Answer it on the You tab to join a side." : `Up close: you're with the ${meYes ? yes.length : no.length} people on your side.`});
+}
+
+function laySimilar(G, me){
+  if (Object.keys(me.answers).length < 5) return null;
+  const scales = numScales(everyone());
+  const scored = [], extra = [];
+  for (const p of G){ const s = similarity(me, p.rec, scales); if (s.n >= 5) scored.push({p, score:s.score}); else extra.push(p); }
+  if (scored.length < MIN_GROUP) return null;
+  scored.sort((a,b) => b.score - a.score);
+  const rOf = s => 30 + (1 - s)*440;
+  scored.forEach((e, i) => { const r = rOf(e.score), a = i*2.399963; setT(e.p, r*Math.cos(a), r*Math.sin(a)*0.8 + 6, i < TOP_MATCHES ? 1 : 0, 1); });
+  setT(C.me, 0, 6, 0, 1);
+  const maxR = rOf(scored[scored.length-1].score) + 24;
+  const top = scored.slice(0, TOP_MATCHES), avg = Math.round(top.reduce((a,e) => a + e.score, 0) / top.length * 100);
+  return {labels:[], extra, rings:[0.75,0.5,0.25].map(s => ({r:rOf(s), label:`${Math.round(s*100)}% alike`})).filter(rg => rg.r < maxR),
+    bounds:{x0:-maxR, x1:maxR, y0:-maxR*0.8 - 10, y1:maxR*0.8 + 20},
+    main:`Your closest match is <b>${Math.round(scored[0].score*100)}%</b> alike`,
+    far:"The closer someone stands to you, the more your answers line up.",
+    near:`Up close: your ${top.length} nearest neighbors are ${avg}% alike on average.`};
+}
+
+function relayout(){
+  if (!C.ready) return;
+  syncPeople();
+  const me = myRecord(), G = [], ghosts = [];
+  for (const p of C.ps) (inGroup(p.rec) ? G : ghosts).push(p);
+  let L, lens = C.lens;
+  const q = QS.find(x => x.id === lens);
+  if (lens === "similar") L = laySimilar(G, me) || layEveryone(G, me, "Answer at least 5 questions to find people like you");
+  else if (q) L = q.type === "num" ? layNum(q, G, me) : q.type === "one" ? layOne(q, G, me) : layMany(q, G, me);
+  else { C.lens = lens = "everyone"; L = layEveryone(G, me); }
+  // people outside the group (or who skipped this question) step back to the edges
+  const b = L.bounds, cx = (b.x0+b.x1)/2, cy = (b.y0+b.y1)/2, R = Math.max(b.x1-b.x0, b.y1-b.y0)*0.62 + 50;
+  ghosts.concat(L.extra || []).forEach(p => { const r = R + (p.ph*41 % 70); setT(p, cx + Math.cos(p.ph*7)*r, cy + Math.sin(p.ph*7)*r*0.7, 0, 0.1); });
+  C.L = L;
+  const now = performance.now(), bw = Math.max(1, b.x1 - b.x0);
+  for (const p of C.ps) p.start = RM ? 0 : now + clamp((p.tx - b.x0)/bw, 0, 1)*380 + (p.ph % 1)*140;
+  C.me.start = RM ? 0 : now + 200;
+  const key = [lens, C.manyOpt[lens] || "", ...DEMOS.map(d => S.filters[d.id] || ""), S.useDemo].join("|");
+  computeFit();
+  if (key !== C.key){ C.key = key; if (!C.tour){ C.userZoom = false; toFit(); } }
+  else if (!C.userZoom && !C.tour) toFit();
+  C.zone = ""; updateCaption();
+  C.cv.setAttribute("aria-label", stripB(L.main) + ". " + stripB(L.far));
+}
+
+function computeFit(){
+  const b = C.L.bounds, bw = b.x1-b.x0, bh = b.y1-b.y0;
+  const top = C.w < 560 ? 124 : 108, bottom = 70;
+  C.fitZ = Math.max(0.05, Math.min((C.w - 40)/bw, (C.h - top - bottom)/bh));
+  C.fitCx = (b.x0+b.x1)/2;
+  C.fitCy = (b.y0+b.y1)/2 - ((top - bottom)/2 - OY)/C.fitZ;
+}
+function zRange(){ const zmin = C.fitZ*0.85, zmax = Math.max(C.fitZ*3, Math.min(C.fitZ*18, 9)); return [zmin, zmax]; }
+function toFit(){ C.tgt = {x:C.fitCx, y:C.fitCy, z:C.fitZ}; }
+function zoomT(t){
+  const [zmin, zmax] = zRange(), z = zmin*Math.pow(zmax/zmin, t);
+  const f = clamp((t - 0.12)/0.55, 0, 1), e = f*f*(3-2*f);
+  C.tgt = {x: C.fitCx + (C.me.tx - C.fitCx)*e, y: C.fitCy + (C.me.ty - 6 - C.fitCy)*e, z};
+}
+function camT(){ const [zmin, zmax] = zRange(); return clamp(Math.log(C.cam.z/zmin)/Math.log(zmax/zmin), 0, 1); }
+function zoomAt(sx, sy, factor){
+  const [zmin, zmax] = zRange(), z0 = C.tgt.z, z1 = clamp(z0*factor, zmin, zmax);
+  const wx = (sx - C.w/2)/z0 + C.tgt.x, wy = (sy - C.h/2 - OY)/z0 + C.tgt.y;
+  C.tgt = {x: wx - (sx - C.w/2)/z1, y: wy - (sy - C.h/2 - OY)/z1, z: z1};
+  C.userZoom = true; stopTour();
+}
+
+function stripB(s){ const d = document.createElement("div"); d.innerHTML = s; return d.textContent; }
+function updateCaption(){
+  const near = C.cam.z / C.fitZ > 2.4, zone = near ? "near" : "far";
+  if (zone === C.zone) return;
+  C.zone = zone;
+  $("cap-main").innerHTML = C.tour ? C.tour.steps[C.tour.i].story : C.L.main;
+  $("cap-sub").innerHTML = near ? C.L.near : C.L.far;
+}
+
+/* ---- draw loop ---- */
+function frame(now){
+  if (!C.running) return;
+  requestAnimationFrame(frame);
+  if (!C.w) return;
+  const dt = Math.min(48, now - (C.last || now)); C.last = now;
+  const kp = RM ? 1 : 1 - Math.pow(1 - 0.075, dt/16.7), kc = RM ? 1 : 1 - Math.pow(1 - 0.11, dt/16.7);
+  if (!C.pointers.size){
+    C.cam.x += (C.tgt.x - C.cam.x)*kc; C.cam.y += (C.tgt.y - C.cam.y)*kc;
+    C.cam.z = Math.exp(Math.log(C.cam.z) + (Math.log(C.tgt.z) - Math.log(C.cam.z))*kc);
+  }
+  if (!C.sliding) $("zoom").value = Math.round(camT()*1000);
+  updateCaption();
+  const g = C.g, W = C.w, H = C.h, z = C.cam.z, col = C.col;
+  const SX = x => (x - C.cam.x)*z + W/2, SY = y => (y - C.cam.y)*z + H/2 + OY;
+  g.setTransform(C.dpr, 0, 0, C.dpr, 0, 0);
+  g.fillStyle = col.stage; g.fillRect(0, 0, W, H);
+  // floor dots
+  const gs = 40*z;
+  if (gs >= 16){
+    g.fillStyle = col.floor;
+    const ox = ((W/2 - C.cam.x*z) % gs + gs) % gs, oy = ((H/2 + OY - C.cam.y*z) % gs + gs) % gs;
+    for (let x = ox; x < W; x += gs) for (let y = oy; y < H; y += gs) g.fillRect(x-1, y-1, 2, 2);
+  }
+  const L = C.L;
+  if (L.rings){
+    g.strokeStyle = col.line; g.lineWidth = 1; g.setLineDash([4,5]);
+    L.rings.forEach(rg => { g.beginPath(); g.ellipse(SX(0), SY(6), rg.r*z, rg.r*0.8*z, 0, 0, 6.2832); g.stroke(); });
+    g.setLineDash([]);
+  }
+  // the crowd
+  const order = C.ps.slice().sort((a,b) => a.y - b.y);
+  const asFig = 14*z >= 9;
+  for (const p of order){
+    if (now >= p.start){
+      const dx = p.tx - p.x, dy = p.ty - p.y;
+      p.x += dx*kp; p.y += dy*kp;
+      p.mv = Math.abs(dx) + Math.abs(dy) > 1.2;
+    }
+    p.a += (p.ta - p.a)*kp; p.tint += (p.tt - p.tint)*kp;
+    if (p.a < 0.02) continue;
+    const bob = (!RM && p.mv) ? -Math.abs(Math.sin(now*0.02 + p.ph*5))*2.4 : 0;
+    const sway = RM ? 0 : Math.sin(now*0.0011 + p.ph*3)*0.35;
+    const x = SX(p.x + sway), y = SY(p.y + bob);
+    if (x < -30 || x > W + 30 || y < -30 || y > H + 60) continue;
+    g.fillStyle = rgba(mix(mix(col.peer, col.stageRgb, p.shade), col.hi, p.tint), p.a);
+    if (asFig) fig(g, x, y, z);
+    else { g.beginPath(); g.arc(x, y - 6*z, Math.max(1.3, 3.8*z), 0, 6.2832); g.fill(); }
+  }
+  // spotlight: the closer you zoom, the darker everyone else gets
+  const m = C.me;
+  if (now >= m.start){ m.x += (m.tx - m.x)*kp; m.y += (m.ty - m.y)*kp; }
+  const mx = SX(m.x), my = SY(m.y);
+  const nearT = clamp((z/C.fitZ - 1.6)/5, 0, 1);
+  if (nearT > 0){
+    const r0 = Math.max(26, 20*z), grd = g.createRadialGradient(mx, my - 7*z, r0, mx, my - 7*z, r0*3.2 + 80);
+    grd.addColorStop(0, rgba(col.stageRgb, 0)); grd.addColorStop(1, rgba(col.stageRgb, 0.62*nearT));
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  }
+  // axis for number questions
+  if (L.axis){
+    const A = L.axis, y = SY(A.y);
+    g.strokeStyle = col.line; g.lineWidth = 1.5; g.beginPath(); g.moveTo(SX(A.x0), y); g.lineTo(SX(A.x1), y); g.stroke();
+    g.font = '500 11px "IBM Plex Mono", monospace'; g.fillStyle = col.muted; g.textAlign = "center"; g.textBaseline = "top";
+    const sp = A.ticks.length > 1 ? Math.abs(SX(A.ticks[1].x) - SX(A.ticks[0].x)) : 100, step = Math.max(1, Math.ceil(64/sp));
+    A.ticks.forEach((t, i) => { if (i % step) return; const x = SX(t.x); g.fillRect(x - 0.5, y, 1, 5); g.fillText(t.label, x, y + 8); });
+    if (A.unit){ g.textAlign = "right"; g.fillText(A.unit, SX(A.x1), y + 24); }
+    const mk = SX(A.mark.x), topY = y - Math.min(220, Math.max(60, 36*z));
+    g.strokeStyle = col.muted; g.setLineDash([3,4]); g.beginPath(); g.moveTo(mk, y); g.lineTo(mk, topY); g.stroke(); g.setLineDash([]);
+    g.textAlign = "left"; g.textBaseline = "bottom"; g.fillStyle = col.ink; g.fillText(A.mark.label, mk + 5, topY + 10);
+  }
+  // you
+  const pulse = RM ? 0.5 : (Math.sin(now*0.005) + 1)/2;
+  const ry = my - 7*Math.max(z, 0.6);
+  g.strokeStyle = col.you; g.globalAlpha = 0.25 + 0.35*(1-pulse); g.lineWidth = 2;
+  g.beginPath(); g.arc(mx, ry, Math.max(10, 9*z) + pulse*Math.max(6, 5*z), 0, 6.2832); g.stroke(); g.globalAlpha = 1;
+  g.fillStyle = col.you;
+  if (asFig) fig(g, mx, my, z); else { g.beginPath(); g.arc(mx, my - 6*z, Math.max(3.4, 4.4*z), 0, 6.2832); g.fill(); }
+  const py = my - Math.max(14*z, 10) - 12;
+  g.font = '700 12px "Atkinson Hyperlegible", sans-serif';
+  const tw = g.measureText("You").width + 16;
+  g.beginPath(); if (g.roundRect) g.roundRect(mx - tw/2, py - 20, tw, 20, 6); else g.rect(mx - tw/2, py - 20, tw, 20); g.fill();
+  g.beginPath(); g.moveTo(mx - 5, py); g.lineTo(mx + 5, py); g.lineTo(mx, py + 6); g.fill();
+  g.fillStyle = col.stage; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("You", mx, py - 10);
+  // labels
+  g.textAlign = "center"; g.textBaseline = "top";
+  (L.labels || []).forEach(lb => {
+    const x = SX(lb.x), y = SY(lb.y);
+    g.font = `${lb.strong ? 700 : 400} ${lb.small ? 11 : 13}px "Atkinson Hyperlegible", sans-serif`;
+    g.fillStyle = lb.strong ? col.you : (lb.small ? col.muted : col.ink); g.fillText(lb.text, x, y);
+    if (lb.sub){ g.font = '500 12px "IBM Plex Mono", monospace'; g.fillStyle = col.muted; g.fillText(lb.sub, x, y + 17); }
+  });
+  if (L.rings){
+    g.font = '500 11px "IBM Plex Mono", monospace'; g.fillStyle = col.muted; g.textBaseline = "bottom";
+    L.rings.forEach(rg => g.fillText(rg.label, SX(0), SY(6 - rg.r*0.8) - 3));
+  }
+}
+
+function startLoop(){ if (C.running) return; C.running = true; C.last = 0; requestAnimationFrame(frame); }
+function stopLoop(){ C.running = false; }
+
+function resizeStage(){
+  const r = $("stage").getBoundingClientRect();
+  if (!r.width) return;
+  C.dpr = Math.min(2, window.devicePixelRatio || 1); C.w = r.width; C.h = r.height;
+  C.cv.width = Math.round(C.w*C.dpr); C.cv.height = Math.round(C.h*C.dpr);
+  if (!C.ready){ C.ready = true; relayout(); C.cam = {...C.tgt, z: C.tgt.z*0.8}; }
+  else { computeFit(); if (!C.userZoom && !C.tour) toFit(); }
+}
+
+function initStage(){
+  if (C.cv) return;
+  C.cv = $("crowd"); C.g = C.cv.getContext("2d");
+  new ResizeObserver(resizeStage).observe($("stage"));
+  const cv = C.cv, rect = () => cv.getBoundingClientRect();
+  cv.addEventListener("pointerdown", e => {
+    cv.setPointerCapture(e.pointerId); C.pointers.set(e.pointerId, {x:e.clientX, y:e.clientY}); cv.classList.add("dragging");
+    stopTour();
+    if (C.pointers.size === 2){ const [a,b] = [...C.pointers.values()]; C.pinch = {d:Math.hypot(a.x-b.x, a.y-b.y)}; }
+  });
+  cv.addEventListener("pointermove", e => {
+    const prev = C.pointers.get(e.pointerId); if (!prev) return;
+    const cur = {x:e.clientX, y:e.clientY};
+    if (C.pointers.size === 1){
+      C.cam.x -= (cur.x - prev.x)/C.cam.z; C.cam.y -= (cur.y - prev.y)/C.cam.z; C.tgt = {...C.cam}; C.userZoom = true;
+    }
+    C.pointers.set(e.pointerId, cur);
+    if (C.pointers.size === 2 && C.pinch){
+      const [a,b] = [...C.pointers.values()], d = Math.hypot(a.x-b.x, a.y-b.y), r = rect();
+      C.tgt = {...C.cam}; zoomAt((a.x+b.x)/2 - r.left, (a.y+b.y)/2 - r.top, d / C.pinch.d); C.cam = {...C.tgt}; C.pinch.d = d;
+    }
+  });
+  const up = e => { C.pointers.delete(e.pointerId); if (C.pointers.size < 2) C.pinch = null; if (!C.pointers.size) cv.classList.remove("dragging"); };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("dblclick", e => { const r = rect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); });
+  cv.addEventListener("wheel", e => { e.preventDefault(); const r = rect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY*0.0016)); }, {passive:false});
+  cv.addEventListener("keydown", e => {
+    if (e.key === "+" || e.key === "=") { zoomAt(C.w/2, C.h/2 + OY, 1.5); e.preventDefault(); }
+    else if (e.key === "-") { zoomAt(C.w/2, C.h/2 + OY, 1/1.5); e.preventDefault(); }
+  });
+  $("z-in").addEventListener("click", () => zoomAt(C.w/2, C.h/2 + OY, 1.6));
+  $("z-out").addEventListener("click", () => zoomAt(C.w/2, C.h/2 + OY, 1/1.6));
+  $("z-me").addEventListener("click", () => { stopTour(); C.userZoom = true; zoomT(0.8); });
+  $("z-fit").addEventListener("click", () => { stopTour(); C.userZoom = false; toFit(); });
+  const zr = $("zoom");
+  zr.addEventListener("input", () => { C.sliding = true; stopTour(); C.userZoom = true; zoomT(zr.value/1000); });
+  const endSlide = () => { C.sliding = false; };
+  zr.addEventListener("change", endSlide); zr.addEventListener("pointerup", endSlide); zr.addEventListener("blur", endSlide);
+}
+
+/* ---- lens picker ---- */
+function buildLens(){
+  let h = chip("radio","lens","everyone","Everyone") + chip("radio","lens","similar","Most like me");
+  for (const [cid, cname] of cats()){
+    const qs = QS.filter(q => q.cat === cid); if (!qs.length) continue;
+    h += `<span class="lgrp">${esc(cid === "Work" ? "Work" : cname)}</span>` + qs.map(q => chip("radio","lens",q.id,q.short || q.label)).join("");
+  }
+  $("lensbar").innerHTML = h;
+  syncLensUI();
+}
+function syncLensUI(){
+  const inp = [...$("lensbar").querySelectorAll("input")].find(i => i.value === C.lens); if (inp) inp.checked = true;
+  const q = QS.find(x => x.id === C.lens);
+  if (q && q.type === "many"){
+    $("subopts").hidden = false;
+    $("subopts").innerHTML = q.options.map(o => chip("radio","sub",o,o)).join("");
+    const s = [...$("subopts").querySelectorAll("input")].find(i => i.value === C.manyOpt[q.id]); if (s) s.checked = true;
+  } else $("subopts").hidden = true;
+}
+function setLens(id, opt){
+  C.lens = id; if (opt) C.manyOpt[id] = opt;
+  relayout(); syncLensUI();
+  const inp = [...$("lensbar").querySelectorAll("input")].find(i => i.value === id);
+  if (inp){ const ch = inp.closest(".chip"), bar = $("lensbar"); bar.scrollTo({left: ch.offsetLeft - bar.clientWidth/2 + ch.clientWidth/2, behavior: RM ? "auto" : "smooth"}); }
+}
+
+/* ---- the stand-out tour ---- */
+function stopTour(){
+  if (!C.tour) return;
+  C.tourTimers.forEach(clearTimeout); C.tourTimers = []; C.tour = null;
+  $("tourbar").hidden = true; C.zone = ""; updateCaption();
+}
+function startTour(){
+  const me = myRecord();
+  if (!hasAnswers(me)){ $("cap-main").textContent = "Answer a few questions first"; $("cap-sub").textContent = "The tour flies you to the places where you stand apart from the crowd."; return; }
+  const {out} = myStats();
+  if (!out.length){ $("cap-main").textContent = "Not enough people to compare with yet"; $("cap-sub").textContent = "Widen the group below, or check back as more people join."; return; }
+  let steps = out.filter(s => s.interest >= 25).sort((a,b) => b.interest - a.interest).slice(0, 5);
+  if (!steps.length) steps = out.sort((a,b) => b.interest - a.interest).slice(0, 3);
+  C.tour = {steps, i:0};
+  $("tourbar").hidden = false;
+  goStep(0);
+}
+function goStep(i){
+  const T = C.tour; if (!T) return;
+  C.tourTimers.forEach(clearTimeout); C.tourTimers = [];
+  T.i = (i + T.steps.length) % T.steps.length;
+  const st = T.steps[T.i];
+  $("pips").innerHTML = T.steps.map((_, k) => `<i class="${k === T.i ? "on" : ""}"></i>`).join("");
+  C.lens = st.lens; if (st.opt) C.manyOpt[st.lens] = st.opt;
+  relayout(); syncLensUI(); toFit(); C.zone = ""; updateCaption();
+  C.tourTimers.push(setTimeout(() => { if (C.tour) zoomT(0.78); }, 1700));
+  C.tourTimers.push(setTimeout(() => { if (C.tour) goStep(T.i + 1); }, 6500));
+}
+
+/* ---------- header strip: a little crowd walking by ---------- */
+function startStrip(){
+  const cv = $("strip"), g = cv.getContext("2d");
+  const people = Array.from({length:44}, (_, i) => ({x: (i*0.618) % 1, v: 0.00003 + ((i*0.37) % 1)*0.00006, ph: i*1.7, me: i === 17, d: 0.7 + ((i*0.53) % 1)*0.35}))
+    .sort((a,b) => a.d - b.d);
+  let last = 0, drawn = false;
+  function draw(now){
+    requestAnimationFrame(draw);
+    if (RM && drawn) return;
+    const r = cv.getBoundingClientRect(); if (!r.width) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (cv.width !== Math.round(r.width*dpr)){ cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr); }
+    const dt = Math.min(50, now - (last || now)); last = now;
+    g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,r.width,r.height);
+    const base = r.height - 3;
+    people.forEach(p => {
+      if (!RM) p.x = (p.x + p.v*dt) % 1.04;
+      const x = -12 + p.x*(r.width + 24), bob = RM ? 0 : -Math.abs(Math.sin(now*0.009 + p.ph))*2;
+      g.fillStyle = p.me ? C.col.pageYou : C.col.pagePeer; g.globalAlpha = p.me ? 1 : 0.35 + p.d*0.5;
+      fig(g, x, base + bob - (1-p.d)*8, 2.3*p.d);
+    });
+    g.globalAlpha = 1; drawn = true;
+  }
+  requestAnimationFrame(draw);
+}
+
+/* ---------- compare cards ---------- */
+function buildFilters(){
+  $("fgrid").innerHTML = DEMOS.map(d => `<label for="f_${d.id}">${esc(d.label)}<select id="f_${d.id}"><option value="">Anyone</option>${d.options.filter(o=>o!=="Prefer not to say").map(o=>`<option>${esc(o)}</option>`).join("")}</select></label>`).join("");
+  DEMOS.forEach(d => $("f_"+d.id).addEventListener("change", e => { S.filters[d.id] = e.target.value; renderActive(); }));
+  $("match").addEventListener("click", () => {
+    const me = myRecord();
+    DEMOS.forEach(d => { const v = me.demo[d.id]; S.filters[d.id] = v && v !== "Prefer not to say" && d.id !== "household" ? v : ""; $("f_"+d.id).value = S.filters[d.id]; });
+    renderActive();
+  });
+  $("clear").addEventListener("click", () => { DEMOS.forEach(d => { S.filters[d.id] = ""; $("f_"+d.id).value = ""; }); renderActive(); });
+  $("cats").addEventListener("change", e => { S.cat = e.target.value; renderCompare(); });
+  $("demo-toggle").addEventListener("change", e => { S.useDemo = e.target.checked; S.demoAuto = false; renderActive(); });
+}
+function buildCats(){
+  if (S.cat !== "All" && !cats().some(c => c[0] === S.cat)) S.cat = "All";
+  $("cats").innerHTML = [["All","All"], ...cats()].map(([id,name]) => chip("radio","cat",id,name)).join("");
+  [...$("cats").querySelectorAll("input")].find(i => i.value === S.cat).checked = true;
+}
+function histogram(q, sorted, mine){
+  const W = 320, H = 92, top = 16, base = 66;
+  const B = numBins(q, sorted, mine), nb = B.nb;
+  const counts = new Array(nb).fill(0);
+  sorted.forEach(v => counts[B.binOf(v)]++);
+  const maxC = Math.max(...counts, 1), bw = W / nb;
+  let svg = `<svg class="hist" viewBox="0 0 ${W} ${H}" role="img" aria-label="Distribution of answers">`;
+  svg += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-width="1"/>`;
+  const myBin = mine != null ? B.binOf(mine) : -1;
+  counts.forEach((c,i) => {
+    const h = c ? Math.max(3, (base-top) * c / maxC) : 0;
+    svg += `<rect x="${(i*bw+1).toFixed(1)}" y="${(base-h).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${i===myBin?"var(--you)":"var(--peer)"}"/>`;
+  });
+  if (mine != null){
+    const x = B.edges ? (myBin+0.5)*bw : Math.min(W-1, Math.max(1, mine / B.hiC * W));
+    const tx = Math.min(W-16, Math.max(16, x));
+    svg += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${top-2}" y2="${base}" stroke="var(--you)" stroke-width="2"/>`;
+    svg += `<text x="${tx.toFixed(1)}" y="10" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--you-ink)" font-weight="500">you</text>`;
+  }
+  const lo = B.edges ? B.edges[0] : 0, hiLabel = B.edges ? B.edges[nb-1] : B.hiC;
+  svg += `<text x="0" y="${H-8}" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${esc(fmt(q, lo))}</text>`;
+  svg += `<text x="${W}" y="${H-8}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${esc(fmt(q, hiLabel))}${!B.edges && B.overflow ? "+" : ""}</text>`;
+  return svg + `</svg>`;
+}
+function barsHtml(rows, total, isMine){
+  return `<div class="bars">${rows.map(([o,c]) => { const p = Math.round(c/total*100), m = isMine(o); return `<div class="bar${m?" mine":""}"><div class="track"><div class="fill" style="width:${p}%"></div><span class="lbl">${esc(o)}${m?" · you":""}</span></div><span class="pc">${p}%</span></div>`; }).join("")}</div>`;
+}
+function renderCompare(){
+  buildCats();
+  const P = pool(), me = myRecord(), hasMe = hasAnswers(me);
+  $("pool-n").innerHTML = `${P.length} <small>${P.length === 1 ? "person" : "people"}</small>`;
+  const standouts = [];
+  if (P.length < MIN_GROUP){
+    $("qcards").innerHTML = `<div class="notice"><h3>Not enough people yet</h3><p class="empty">${P.length === 0 ? "Nobody matches" : "Only " + P.length + (P.length===1?" person matches":" people match")} these filters. Results appear once at least ${MIN_GROUP} people match, so no one can be singled out. Try widening the filters.</p></div>`;
+    $("standouts").hidden = true; return;
+  }
+  let h = hasMe ? "" : `<div class="notice"><h3>Add your answers to see yourself here</h3><p class="empty">Below is how this group answered. Fill in the You tab and you'll appear in the crowd and on every chart.</p></div>`;
+  for (const q of QS){
+    const catName = cats().find(c => c[0] === q.cat)[1];
+    const mine = me.answers[q.id];
+    const ans = P.map(p => p.answers[q.id]).filter(v => v != null);
+    let body = "", verdict = "";
+    if (ans.length < MIN_GROUP){
+      body = `<p class="empty">Fewer than ${MIN_GROUP} people in this group answered.</p>`;
+    } else if (q.type === "num"){
+      const s = [...ans].sort((a,b)=>a-b);
+      if (mine != null){
+        const pct = pctOf(s, mine);
+        verdict = q.more ? `You ${q.more} <b>${pct}%</b> of them.` : `You're higher than <b>${pct}%</b> of them.`;
+        if (pct >= 80) standouts.push(`${q.short || q.label}: top ${Math.max(1,100-pct)}%`);
+        else if (pct <= 20) standouts.push(`${q.short || q.label}: bottom ${Math.max(1,pct)}%`);
+      }
+      body = histogram(q, s, mine) + `<div class="stats"><span>median ${esc(fmt(q, median(s)))}</span><span>you ${esc(fmt(q, mine))}</span><span>${s.length} answers</span></div>`;
+    } else if (q.type === "one"){
+      const rows = q.options.map(o => [o, ans.filter(v => v === o).length]).filter(x => x[1] > 0 || x[0] === mine).sort((a,b)=>b[1]-a[1]);
+      if (mine != null){
+        const share = Math.round(rows.find(c=>c[0]===mine)[1] / ans.length * 100);
+        verdict = `<b>${share}%</b> picked the same as you.`;
+        if (share <= 15) standouts.push(`Only ${share}% also chose "${mine}"`);
+      }
+      body = barsHtml(rows, ans.length, o => o === mine);
+    } else {
+      const rows = q.options.map(o => [o, ans.filter(v => v.includes(o)).length]).sort((a,b)=>b[1]-a[1]);
+      if (mine && mine.length){
+        const shared = rows.filter(c => mine.includes(c[0])), rare = shared[shared.length-1], rp = Math.round(rare[1]/ans.length*100);
+        verdict = `Your rarest pick: <b>${esc(rare[0])}</b> (${rp}% share it).`;
+        if (rp <= 15) standouts.push(`Rare pick: ${rare[0]} (${rp}%)`);
+      }
+      body = barsHtml(rows, ans.length, o => mine && mine.includes(o));
+    }
+    if (S.cat === "All" || S.cat === q.cat){
+      h += `<article class="card"><div class="card-head"><h3>${esc(q.label)}</h3><button class="linkbtn" type="button" data-lens="${esc(q.id)}">See in crowd ↑</button></div>${verdict ? `<p class="verdict">${verdict}</p>` : ""}${body}</article>`;
+    }
+  }
+  $("qcards").innerHTML = h;
+  $("standouts").hidden = standouts.length === 0;
+  $("so-list").innerHTML = standouts.slice(0,5).map(t => `<span class="so"><i></i>${esc(t)}</span>`).join("");
+}
+
+/* ---------- matches ---------- */
+function renderMatches(){
+  const el = $("matches"), me = myRecord(), all = everyone();
+  if (!hasAnswers(me)){
+    el.innerHTML = `<div class="notice"><h3>Answer a few questions first</h3><p class="empty">Matches are found by comparing your answers with everyone else's. Fill in at least 5 questions on the You tab, then come back.</p></div>`; return;
+  }
+  const scales = numScales(all);
+  const ranked = all.map(p => ({p, ...similarity(me, p, scales)})).filter(x => x.n >= 5)
+    .map(x => ({...x, rank: x.score * x.n / (x.n + 3)})).sort((a,b) => b.rank - a.rank);
+  if (ranked.length < MIN_GROUP){
+    el.innerHTML = `<div class="notice"><h3>Not enough overlap yet</h3><p class="empty">Matches need at least ${MIN_GROUP} people who answered 5 or more of the same questions as you. Answer more questions, or check back as more people join.</p></div>`; return;
+  }
+  const top = ranked.slice(0, TOP_MATCHES), G = top.map(x => x.p);
+  const avg = Math.round(top.reduce((a,x) => a + x.score, 0) / top.length * 100);
+  const common = [], diff = [];
+  for (const q of QS){
+    const mine = me.answers[q.id]; if (mine == null) continue;
+    const vals = G.map(p => p.answers[q.id]).filter(v => v != null);
+    if (vals.length < MIN_GROUP) continue;
+    if (q.type === "num"){
+      const s = [...vals].sort((a,b)=>a-b), pct = pctOf(s, mine), med = median(s);
+      const tail = ` (you ${fmt(q, mine)}, their median ${fmt(q, med)})`;
+      if (pct >= 75) diff.push([pct, `${q.label}: higher than most of your matches${tail}`]);
+      else if (pct <= 25) diff.push([100-pct, `${q.label}: lower than most of your matches${tail}`]);
+      else if (pct >= 35 && pct <= 65) common.push([60, `${q.label}: right in line with them (median ${fmt(q, med)})`]);
+    } else if (q.type === "one"){
+      const counts = q.options.map(o => [o, vals.filter(v => v === o).length]).sort((a,b)=>b[1]-a[1]);
+      const [mode, mc] = counts[0], share = Math.round(mc/vals.length*100), myShare = Math.round((counts.find(c=>c[0]===mine)?.[1]||0)/vals.length*100);
+      if (mode === mine && share >= 50) common.push([share, `${share}% also said "${mine}" · ${q.label}`]);
+      else if (mode !== mine && myShare <= 25) diff.push([share, `Most said "${mode}" (${share}%), you said "${mine}" · ${q.label}`]);
+    } else {
+      for (const o of q.options){
+        const share = Math.round(vals.filter(v => v.includes(o)).length / vals.length * 100);
+        if (mine.includes(o) && share >= 50) common.push([share, `${share}% also picked ${o}`]);
+        else if (mine.includes(o) && share <= 10) diff.push([90, share === 0 ? `None of them picked ${o}, you did` : `Only ${share}% share your pick of ${o}`]);
+        else if (!mine.includes(o) && share >= 60) diff.push([share, `${share}% picked ${o}, you didn't`]);
+      }
+    }
+  }
+  const list = (arr, cls) => arr.length ? `<ul class="points ${cls}">${arr.sort((a,b)=>b[0]-a[0]).slice(0,6).map(x => `<li><span>${esc(x[1])}</span></li>`).join("")}</ul>` : `<p class="empty">Nothing stands out here yet.</p>`;
+  let h = `<div class="panel"><div class="panel-head"><h2>Your ${top.length} closest matches</h2><div class="big">${avg}% <small>alike on average</small></div></div><p class="hint">Picked from ${all.length} people by how closely their answers line up with yours. Matches stay anonymous, and their individual answers are never shown, only what you have in common.</p><div class="frow"><button class="btn amber sm" id="to-similar" type="button">See them in the crowd</button></div></div>`;
+  h += `<div class="stack" style="margin-bottom:18px"><div class="card"><h3>What you have in common</h3>${list(common, "")}</div><div class="card"><h3>Where you differ</h3>${list(diff, "diff")}</div></div>`;
+  h += `<div class="mgrid">${top.map((x,i) => { const p = Math.round(x.score*100); return `<div class="mcard"><div class="mtop"><b>Match ${i+1}</b><span class="pctbadge">${p}% alike</span></div><div class="meter"><i style="width:${p}%"></i></div><div class="mini">${x.shared.slice(0,5).map(t => `<span>${esc(t)}</span>`).join("")}</div></div>`; }).join("")}</div>`;
+  el.innerHTML = h;
+  $("to-similar").addEventListener("click", () => { C.lens = "similar"; setTab("crowd"); });
+}
+
+/* ---------- share card ---------- */
+function wrapText(g, text, maxW){
+  const words = text.split(/\s+/), lines = []; let cur = "";
+  for (const w of words){ const t = cur ? cur + " " + w : w; if (g.measureText(t).width > maxW && cur){ lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur); return lines;
+}
+let drawToken = 0;
+async function drawCard(stats, n, label, demo){
+  const tok = ++drawToken;
+  try { await Promise.all(['800 80px "Bricolage Grotesque"','700 40px "Atkinson Hyperlegible"','400 30px "Atkinson Hyperlegible"','500 28px "IBM Plex Mono"'].map(f => document.fonts.load(f))); } catch {}
+  if (tok !== drawToken) return;
+  const W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const BG = "#0D131E", INK = "#EEF2F8", MUTED = "#8C99AD", AMBER = "#F2B33D", HI = "#93A8CF", LO = "#2C374A", LINE = "#2A3548";
+  g.fillStyle = BG; g.fillRect(0,0,W,H);
+  g.textBaseline = "alphabetic";
+  g.font = '800 60px "Bricolage Grotesque", sans-serif';
+  g.fillStyle = INK; g.fillText("compare", 80, 140);
+  const cw = g.measureText("compare").width; g.fillStyle = AMBER; g.fillText("me", 80 + cw, 140);
+  g.font = '500 24px "IBM Plex Mono", monospace'; g.fillStyle = MUTED; g.textAlign = "right";
+  g.fillText(`vs ${n} people`, W-80, 108); g.fillText(label.length > 34 ? label.slice(0,33) + "…" : label, W-80, 140); g.textAlign = "left";
+  const hero = stats[0];
+  if (hero){
+    g.font = '800 180px "Bricolage Grotesque", sans-serif'; g.fillStyle = AMBER; g.fillText(hero.big, 70, 400);
+    const bw = g.measureText(hero.big).width;
+    const tx = Math.min(80 + bw + 30, 600), tw = W - 80 - tx;
+    g.font = '700 40px "Atkinson Hyperlegible", sans-serif'; g.fillStyle = INK;
+    const l1 = wrapText(g, hero.line1, tw).slice(0,3);
+    l1.forEach((t, j) => g.fillText(t, tx, 286 + j*46));
+    g.font = '400 26px "Atkinson Hyperlegible", sans-serif'; g.fillStyle = MUTED;
+    g.fillText(wrapText(g, hero.line2, tw)[0], tx, 286 + l1.length*46 + 6);
+    // a crowd of 100: each figure is 1% of people
+    const cols = 20, s = 3.9, gx = 80, colW = (W - 160)/cols, rowH = 64, gy = 470;
+    const v = clamp(Math.round(hero.value), 0, 100);
+    for (let i = 0; i < 100; i++){
+      const x = gx + (i % cols)*colW + colW/2, y = gy + Math.floor(i/cols)*rowH + 56;
+      let color;
+      if (hero.kind === "num") color = i === clamp(v, 0, 99) ? AMBER : i < v ? HI : LO;
+      else color = i === 0 ? AMBER : i < v ? HI : LO;
+      g.fillStyle = color; fig(g, x, y, s);
+    }
+    g.font = '500 21px "IBM Plex Mono", monospace'; g.fillStyle = MUTED;
+    g.fillText(hero.kind === "num" ? "each figure = 1% of people · blue = below me · amber = me" : "each figure = 1% of people · blue = answered like me", 80, gy + 5*rowH + 40);
+  }
+  stats.slice(1, 4).forEach((st, i) => {
+    const y = 930 + i*100;
+    g.fillStyle = LINE; g.fillRect(80, y, W-160, 2);
+    g.font = '800 68px "Bricolage Grotesque", sans-serif'; g.fillStyle = AMBER; g.fillText(st.big, 80, y + 76);
+    g.font = '700 30px "Atkinson Hyperlegible", sans-serif'; g.fillStyle = INK;
+    g.fillText(wrapText(g, st.line1, 640)[0], 330, y + 46);
+    g.font = '400 23px "Atkinson Hyperlegible", sans-serif'; g.fillStyle = MUTED;
+    g.fillText(wrapText(g, st.line2, 640)[0], 330, y + 80);
+  });
+  g.fillStyle = LINE; g.fillRect(80, 1236, W-160, 2);
+  g.font = '800 36px "Bricolage Grotesque", sans-serif'; g.fillStyle = INK; g.textAlign = "right";
+  g.fillText("Where do you stand?", W-80, 1294); g.textAlign = "left";
+  if (demo){
+    g.fillStyle = AMBER; g.fillRect(80, 1264, 420, 44);
+    g.font = '700 22px "Atkinson Hyperlegible", sans-serif'; g.fillStyle = BG; g.fillText("SAMPLE DATA · NOT REAL RESULTS", 96, 1294);
+  }
+  if (tok !== drawToken) return;
+  $("card-img").src = c.toDataURL("image/png");
+  c.toBlob(b => { if (tok === drawToken) S.cardBlob = b; }, "image/png");
+}
+function renderShare(){
+  const me = myRecord();
+  const {P, out} = myStats();
+  if (!hasAnswers(me) || out.length === 0){
+    $("share-main").hidden = true;
+    $("share-empty").innerHTML = !hasAnswers(me)
+      ? `<div class="notice"><h3>Answer some questions first</h3><p class="empty">Your card shows your most interesting stats, like "you sleep more than 82% of people," drawn as a crowd of 100. Fill in the You tab to make one.</p></div>`
+      : `<div class="notice"><h3>Not enough people to compare with</h3><p class="empty">At least ${MIN_GROUP} people need to match your crowd filters before a card can be made. Widen the group on the Crowd tab.</p></div>`;
+    return;
+  }
+  $("share-empty").innerHTML = ""; $("share-main").hidden = false;
+  out.sort((a,b) => b.interest - a.interest);
+  const ids = out.map(s => s.q.id);
+  if (!S.cardSel) S.cardSel = out.filter(s => !s.money).slice(0,3).map(s => s.q.id);
+  S.cardSel = S.cardSel.filter(id => ids.includes(id));
+  $("share-group").textContent = `Compared with ${P.length} people · ${groupLabel()}. Change the group on the Crowd tab.`;
+  $("picks").innerHTML = out.map(s => `<label class="pick"><input type="checkbox" value="${esc(s.q.id)}" ${S.cardSel.includes(s.q.id)?"checked":""}><span>${esc(s.line1)}<span class="ps">${esc(s.q.label)}</span></span><span class="pv">${esc(s.big)}</span></label>`).join("");
+  const chosen = S.cardSel.map(id => out.find(s => s.q.id === id)).filter(Boolean).slice(0,4);
+  S.cardCaption = (chosen[0] ? chosen[0].caption + ". " : "") + "Where do you stand? #compareme";
+  drawCard(chosen, P.length, groupLabel(), S.useDemo);
+}
+
+/* ---------- ideas ---------- */
+function sugKey(owner, id){ return owner + "~" + id; }
+function allSuggestions(){
+  const counts = {}, items = [];
+  for (const d of S.sugDocs){
+    const votes = Array.isArray(d.data.votes) ? d.data.votes.filter(v => typeof v === "string").slice(0,500) : [];
+    new Set(votes).forEach(v => counts[v] = (counts[v]||0) + 1);
+    (Array.isArray(d.data.items) ? d.data.items : []).slice(0,20).map(cleanSug).filter(Boolean).forEach(s => items.push({...s, owner:d.id, key:sugKey(d.id, s.id)}));
+  }
+  return items.filter(s => !S.dismissed.includes(s.key)).map(s => ({...s, votes:counts[s.key]||0})).sort((a,b) => b.votes - a.votes || (b.at > a.at ? 1 : -1));
+}
+function renderIdeas(){
+  const list = allSuggestions(), myVotes = new Set(S.mySug.votes), inSurvey = new Set(S.custom.map(q => q.fromKey));
+  if (!list.length){
+    $("sug-list").innerHTML = `<div class="notice"><h3>No suggestions yet</h3><p class="empty">Suggest the first question above. Everyone can vote on suggestions, and the most popular ones can be added to the survey.</p></div>`; return;
+  }
+  const up = `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 9.5 7 4.5l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  $("sug-list").innerHTML = `<h2 style="font-size:18px">Suggested questions</h2>` + list.map(s => {
+    const mine = s.owner === S.uid, added = inSurvey.has(s.key);
+    const meta = s.type === "num" ? `Number${s.unit ? " · " + s.unit : ""}` : `${s.type === "one" ? "Pick one" : "Pick several"}: ${s.options.join(" · ")}`;
+    let actions = "";
+    if (mine && !added) actions += `<button class="btn danger sm" data-act="del" data-id="${esc(s.id)}" type="button">Delete</button>`;
+    if (S.admin && !added) actions += `<button class="btn sm" data-act="add" data-key="${esc(s.key)}" type="button">Add to survey</button><button class="btn ghost sm" data-act="dismiss" data-key="${esc(s.key)}" type="button">Dismiss</button>`;
+    if (S.admin && added) actions += `<button class="btn ghost sm" data-act="unadd" data-key="${esc(s.key)}" type="button">Remove from survey</button>`;
+    return `<div class="sug"><button class="vote" type="button" data-act="vote" data-key="${esc(s.key)}" aria-pressed="${myVotes.has(s.key)}" aria-label="Vote for this question" ${mine?"disabled":""}>${up}<span>${s.votes}</span></button><div class="sug-body">${added?`<span class="badge on">In the survey</span>`:""}${mine?`<span class="badge">Yours</span>`:""}<p>${esc(s.text)}</p><span class="sug-meta">${esc(meta)}</span>${actions?`<div class="sug-actions">${actions}</div>`:""}</div></div>`;
+  }).join("");
+}
+function writeMySug(next, okMsg){
+  if (!S.db || !S.uid){ sugStatus("Suggesting and voting need you to be signed in to Claude.", true); return; }
+  if (S.sugReadOnly){ sugStatus("This link lets you view suggestions but not add or vote. Ask the owner to invite you as an editor.", true); return; }
+  const prev = S.mySug; S.mySug = next; renderIdeas();
+  S.sugQ = S.sugQ.then(() => S.db.doc("suggestions/" + S.uid).set({items:next.items, votes:next.votes})).then(() => { if (okMsg) sugStatus(okMsg); }).catch(e => {
+    S.mySug = prev; renderIdeas();
+    if (e && e.code === "invalid_argument"){ S.sugReadOnly = true; sugStatus("This link lets you view suggestions but not add or vote. Ask the owner to invite you as an editor.", true); }
+    else sugStatus("Couldn't save that just now. Try again.", true);
+  });
+}
+function writeConfig(items, dismissed, okMsg){
+  const prevI = S.customRaw, prevD = S.dismissed;
+  S.cfgQ = S.cfgQ.then(() => S.db.doc("config/questions").set({items, dismissed})).then(() => sugStatus(okMsg)).catch(() => { S.customRaw = prevI; S.dismissed = prevD; sugStatus("Couldn't update the survey just now. Try again.", true); });
+}
+function sugStatus(m, err){ const el = $("sug-status"); el.textContent = m; el.classList.toggle("err", !!err); }
+function bindIdeas(){
+  document.querySelectorAll('input[name="sug-type"]').forEach(r => r.addEventListener("change", () => {
+    const t = document.querySelector('input[name="sug-type"]:checked').value;
+    $("sug-unit").hidden = t !== "num"; $("sug-opts").hidden = t === "num";
+  }));
+  $("sug-add").addEventListener("click", () => {
+    const text = $("sug-text").value.trim(), type = document.querySelector('input[name="sug-type"]:checked').value;
+    if (text.length < 8){ sugStatus("Write the question out in full, at least a few words.", true); return; }
+    const item = {id:rid(), text:text.slice(0,140), type, at:new Date().toISOString()};
+    if (type === "num") item.unit = $("sug-unit").value.trim().slice(0,20);
+    else { item.options = cleanOpts($("sug-opts").value.split(",")); if (item.options.length < 2){ sugStatus("Add at least 2 choices, separated by commas.", true); return; } }
+    if (S.mySug.items.length >= 20){ sugStatus("You've reached 20 suggestions. Delete one to add another.", true); return; }
+    writeMySug({items:[...S.mySug.items, item], votes:S.mySug.votes}, "Thanks. Your suggestion is up for votes.");
+    $("sug-text").value = ""; $("sug-opts").value = ""; $("sug-unit").value = "";
+  });
+  $("sug-list").addEventListener("click", e => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const act = b.dataset.act, key = b.dataset.key;
+    if (act === "vote"){
+      const v = new Set(S.mySug.votes); v.has(key) ? v.delete(key) : v.add(key);
+      writeMySug({items:S.mySug.items, votes:[...v].slice(-300)});
+    } else if (act === "del"){
+      writeMySug({items:S.mySug.items.filter(s => s.id !== b.dataset.id), votes:S.mySug.votes}, "Suggestion deleted.");
+    } else if (act === "add"){
+      const s = allSuggestions().find(x => x.key === key); if (!s) return;
+      if (S.customRaw.length >= 30){ sugStatus("The survey already has 30 community questions. Remove one first.", true); return; }
+      const def = {id:"c_" + rid(), label:s.text, type:s.type, fromKey:key};
+      if (s.type === "num") def.unit = s.unit || ""; else def.options = s.options;
+      writeConfig([...S.customRaw, def], S.dismissed, "Added. Everyone now sees it on the You tab.");
+    } else if (act === "unadd"){
+      writeConfig(S.customRaw.filter(d => d.fromKey !== key), S.dismissed, "Removed from the survey. Answers already given are kept but hidden.");
+    } else if (act === "dismiss"){
+      writeConfig(S.customRaw, [...S.dismissed, key].slice(-500), "Suggestion dismissed.");
+    }
+  });
+}
+
+/* ---------- tabs & status ---------- */
+function renderActive(){
+  if (S.demoAuto){ S.useDemo = S.real.length < MIN_GROUP; $("demo-toggle").checked = S.useDemo; }
+  $("demo-banner").hidden = (!S.useDemo && S.real.length >= MIN_GROUP) || S.tab === "form" || S.tab === "ideas";
+  if (S.tab === "crowd"){ relayout(); renderCompare(); }
+  else if (S.tab === "matches") renderMatches();
+  else if (S.tab === "share") renderShare();
+  else if (S.tab === "ideas") renderIdeas();
+}
+function setTab(t){
+  S.tab = t;
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  ["form","crowd","matches","share","ideas"].forEach(v => $("view-" + v).hidden = v !== t);
+  if (t === "crowd"){ initStage(); buildLens(); startLoop(); if (C.ready) resizeStage(); }
+  else { stopLoop(); stopTour(); }
+  renderActive();
+  window.scrollTo({top:0});
+}
+function setStatus(msg, err){ const el = $("status"); el.textContent = msg; el.classList.toggle("err", !!err); }
+function updateCount(){
+  const n = S.real.length + (S.saved ? 1 : 0);
+  $("count").textContent = !S.db ? "Open in Claude while signed in to join the crowd" : n === 0 ? "No one has answered yet. Be the first." : `${n} ${n===1?"person has":"people have"} answered`;
+}
+
+/* ---------- save / remove ---------- */
+const READ_ONLY_MSG = "This link lets you view comparisons but not add answers. Ask the owner to invite you as an editor.";
+async function save(){
+  const rec = readForm();
+  const missing = DEMOS.filter(d => d.req && !rec.demo[d.id]).map(d => d.label.toLowerCase());
+  if (missing.length){ setStatus(`Pick your ${missing.join(", ")} first. "Prefer not to say" is fine for gender.`, true); return; }
+  if (!S.db || !S.uid){ setStatus("Saving needs you to be signed in to Claude. You can still explore the sample crowd.", true); return; }
+  if (S.readOnly){ setStatus(READ_ONLY_MSG, true); return; }
+  const keep = S.rawMine && S.rawMine.answers && typeof S.rawMine.answers === "object" ? Object.fromEntries(Object.entries(S.rawMine.answers).filter(([k]) => /^c_/.test(k) && !QS.some(q => q.id === k))) : {};
+  $("save").disabled = true; setStatus("Saving…");
+  try {
+    const body = {v:1, demo:rec.demo, answers:{...keep, ...rec.answers}, updatedAt:new Date().toISOString()};
+    await S.db.doc("responses/" + S.uid).set(body);
+    S.rawMine = body; S.saved = rec; S.dirty = false;
+    setStatus("Saved. You're in the crowd now.");
+    $("remove").hidden = false;
+  } catch (e) {
+    if (e && e.code === "invalid_argument"){ S.readOnly = true; setStatus(READ_ONLY_MSG, true); }
+    else if (e && e.code === "quota_exceeded") setStatus("The answer store is full, so new answers can't be saved right now.", true);
+    else setStatus("Couldn't save just now. Check your connection and try again.", true);
+  } finally { $("save").disabled = false; updateCount(); }
+}
+let armTimer = null;
+async function removeMine(){
+  const b = $("remove");
+  if (b.dataset.armed !== "1"){ b.dataset.armed = "1"; b.textContent = "Tap again to remove"; clearTimeout(armTimer); armTimer = setTimeout(() => { b.dataset.armed = "0"; b.textContent = "Remove my answers"; }, 4000); return; }
+  clearTimeout(armTimer); b.dataset.armed = "0"; b.textContent = "Remove my answers";
+  try { await S.db.doc("responses/" + S.uid).delete(); S.rawMine = null; S.saved = null; S.dirty = false; fillForm(null); b.hidden = true; setStatus("Your answers were removed."); updateCount(); }
+  catch { setStatus("Couldn't remove your answers just now. Try again.", true); }
+}
+
+/* ---------- share actions ---------- */
+async function saveCard(){
+  const st = $("share-status");
+  const dl = window.claude?.use ? await window.claude.use("downloads") : null;
+  if (!dl || !S.cardBlob){ st.textContent = "Saving isn't available here. Press and hold (or right-click) the card image to save it."; return; }
+  try { await dl.save({filename:"compareme-card.png", data:S.cardBlob}); st.textContent = "Card ready. Post it wherever you like."; st.classList.remove("err"); }
+  catch (e) {
+    if (e && e.code === "declined") st.textContent = "";
+    else if (e && e.code === "rate_limited") st.textContent = "A save prompt is already open. Finish that one first.";
+    else st.textContent = "Saving isn't available here. Press and hold (or right-click) the card image to save it.";
+  }
+}
+async function copyCaption(){
+  const st = $("share-status");
+  try { await navigator.clipboard.writeText(S.cardCaption); st.textContent = "Caption copied."; }
+  catch { st.textContent = S.cardCaption; }
+}
+
+/* ---------- boot ---------- */
+readColors();
+const reColor = () => readColors();
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reColor); } catch {}
+new MutationObserver(reColor).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+buildForm(); buildFilters(); bindIdeas(); startStrip();
+$("form").addEventListener("click", e => {
+  const inp = e.target.closest(".chip")?.querySelector("input[type=radio]");
+  if (!inp || e.target !== inp) return;
+  if (inp.dataset.was === "1"){ inp.checked = false; inp.dataset.was = "0"; markDirty(); }
+  else { document.querySelectorAll(`#form input[name="${inp.name}"]`).forEach(x=>x.dataset.was="0"); inp.dataset.was = "1"; }
+});
+$("form").addEventListener("input", markDirty);
+$("form").addEventListener("change", markDirty);
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
+$("save").addEventListener("click", save);
+$("remove").addEventListener("click", removeMine);
+$("lensbar").addEventListener("change", e => { stopTour(); setLens(e.target.value); });
+$("subopts").addEventListener("change", e => { stopTour(); setLens(C.lens, e.target.value); });
+$("tour-btn").addEventListener("click", () => { stopTour(); startTour(); });
+$("tour-next").addEventListener("click", () => { if (C.tour) goStep(C.tour.i + 1); });
+$("tour-prev").addEventListener("click", () => { if (C.tour) goStep(C.tour.i - 1); });
+$("tour-stop").addEventListener("click", stopTour);
+$("qcards").addEventListener("click", e => {
+  const b = e.target.closest("[data-lens]"); if (!b) return;
+  stopTour(); setLens(b.dataset.lens);
+  $("stage").scrollIntoView({block:"center", behavior: RM ? "auto" : "smooth"});
+});
+$("picks").addEventListener("change", e => {
+  const id = e.target.value;
+  if (e.target.checked){ if (S.cardSel.length >= 4){ e.target.checked = false; $("share-status").textContent = "Up to 4 stats fit on a card."; return; } S.cardSel.push(id); }
+  else S.cardSel = S.cardSel.filter(x => x !== id);
+  $("share-status").textContent = ""; renderShare();
+});
+$("save-card").addEventListener("click", saveCard);
+$("copy-cap").addEventListener("click", copyCaption);
+
+(async () => {
+  const [db, user] = await Promise.all([
+    window.claude?.use ? window.claude.use("db") : null,
+    window.claude?.use ? window.claude.use("user") : null
+  ]);
+  S.db = db; S.uid = user ? await user.id() : null;
+  S.admin = user ? await user.canEdit() : false;
+  updateCount();
+  if (!db){ renderActive(); return; }
+  const lost = () => { $("count").textContent = "Lost the connection to shared answers. Reload to try again."; };
+  db.collection("responses").onSnapshot(snap => {
+    const raw = []; let mine = null;
+    for (const d of snap.docs){ if (d.id === S.uid) mine = d.data(); else raw.push(d.data()); }
+    S.rawReal = raw; S.rawMine = mine; recompute();
+    if (!S.loaded){
+      S.loaded = true;
+      if (S.saved){ fillForm(S.saved); $("remove").hidden = false; updateCount(); setTab("crowd"); return; }
+    }
+    updateCount(); renderActive();
+  }, lost);
+  db.doc("config/questions").onSnapshot(snap => {
+    const d = snap.exists ? snap.data() : {};
+    const raw = Array.isArray(d.items) ? d.items.slice(0,30) : [];
+    const seen = new Set();
+    S.custom = raw.map(cleanCustom).filter(q => q && !seen.has(q.id) && seen.add(q.id));
+    S.customRaw = S.custom.map(q => q.type === "num" ? {id:q.id,label:q.label,type:q.type,unit:q.unit,fromKey:q.fromKey} : {id:q.id,label:q.label,type:q.type,options:q.options,fromKey:q.fromKey});
+    S.dismissed = Array.isArray(d.dismissed) ? d.dismissed.filter(x => typeof x === "string").slice(0,500) : [];
+    const key = S.custom.map(q => q.id).join(",");
+    recompute();
+    if (key !== S.cfgKey){ S.cfgKey = key; rebuildForm(); if (C.cv) buildLens(); }
+    renderActive();
+  }, () => {});
+  db.collection("suggestions").onSnapshot(snap => {
+    S.sugDocs = snap.docs.map(d => ({id:d.id, data:d.data() || {}}));
+    const mine = S.sugDocs.find(d => d.id === S.uid);
+    if (mine) S.mySug = {items:(Array.isArray(mine.data.items)?mine.data.items:[]).map(cleanSug).filter(Boolean), votes:Array.isArray(mine.data.votes)?mine.data.votes.filter(v=>typeof v==="string"):[]};
+    if (S.tab === "ideas") renderIdeas();
+  }, () => {});
+})();
+})();
+</script>
+
+</body>
+</html>
