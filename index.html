@@ -59,8 +59,8 @@ button,input,select{font:inherit;color:inherit}
 
 /* tabs */
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
-.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:4px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:18px}
-.tab{flex:1;min-width:0;border:0;background:transparent;padding:9px 4px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.tab{flex:1 0 auto;min-width:0;border:0;background:transparent;padding:9px 10px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);white-space:nowrap}
 .tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
 
 /* form bits */
@@ -249,6 +249,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .adm .field{width:100%}
 .adm-row{display:flex;gap:6px;flex-wrap:wrap}
 #adm-filter .chip{cursor:pointer}
+.adm-sec{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--muted)}
+.adm-sec select{flex:1 1 180px;width:auto;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:14px}
 #adm-status{flex:none}
 #adm-status:empty{display:none}
 @media (prefers-reduced-motion:no-preference){.bar .fill,.meter i{transition:width .35s ease}}
@@ -434,10 +436,36 @@ const BUILTIN = [
   {id:"pineapple",short:"Pineapple pizza",cat:"Fun",label:"Pineapple on pizza?",type:"one",options:["Love it","No way","Never tried"]},
   {id:"chrono",short:"Morning or night",cat:"Fun",label:"Morning person or night owl?",type:"one",options:["Morning person","Night owl","Depends on the day"]},
   {id:"pets",short:"Cats or dogs",cat:"Fun",label:"Cats or dogs?",type:"one",options:["Cats","Dogs","Both","Neither"]},
-  {id:"coffee",short:"Coffee",cat:"Fun",label:"Cups of coffee a day",type:"num",fmt:"int",unit:"cups",min:0,max:15,int:true,more:"drink more coffee than",below:"drink less coffee than me"}
+  {id:"coffee",short:"Coffee",cat:"Fun",label:"Cups of coffee a day",type:"num",fmt:"int",unit:"cups",min:0,max:15,int:true,more:"drink more coffee than",below:"drink less coffee than me"},
+  {id:"cushion",short:"Emergency fund",cat:"Money",label:"Months of expenses you have saved",type:"num",fmt:"int",unit:"months",min:0,max:120,int:true,hint:"Roughly is fine",more:"have a bigger cushion than",below:"have a smaller cushion than me"},
+  {id:"eatout",short:"Eating out",cat:"Money",label:"Monthly spending on eating out and takeout",type:"num",fmt:"money",unit:"USD / month",min:0,max:20000,more:"spend more eating out than",below:"spend less eating out than me"},
+  {id:"invest",short:"Investing",cat:"Money",label:"Do you invest?",type:"one",options:["Every month","Now and then","Not yet","Not for me"]},
+  {id:"streams",short:"Streaming subs",cat:"Money",label:"Streaming services you pay for",type:"num",fmt:"int",unit:"services",min:0,max:20,int:true,more:"pay for more streaming than",below:"pay for less streaming than me"},
+  {id:"commute",short:"Commute",cat:"Lifestyle",label:"Commute each way",type:"num",fmt:"int",unit:"minutes",min:0,max:240,int:true,hint:"Use 0 if you work from home",more:"commute longer than",below:"have a shorter commute than me"},
+  {id:"books",short:"Books",cat:"Lifestyle",label:"Books read in the past year",type:"num",fmt:"int",unit:"books",min:0,max:300,int:true,more:"read more books than",below:"read fewer books than me"},
+  {id:"cook",short:"Home cooking",cat:"Lifestyle",label:"Dinners you cook at home each week",type:"num",fmt:"int",unit:"dinners",min:0,max:7,int:true,more:"cook at home more than",below:"cook at home less than me"},
+  {id:"countries",short:"Countries visited",cat:"Lifestyle",label:"Countries you've visited",type:"num",fmt:"int",unit:"countries",min:0,max:195,int:true,hint:"Count your home country",more:"have visited more countries than",below:"have visited fewer countries than me"},
+  {id:"social",short:"Introvert or extrovert",cat:"Lifestyle",label:"Introvert or extrovert?",type:"one",options:["Introvert","Extrovert","Somewhere in between"]},
+  {id:"getaway",short:"Beach or mountains",cat:"Fun",label:"Dream getaway",type:"one",options:["Beach","Mountains","Big city","Staying home"]},
+  {id:"power",short:"Superpower",cat:"Fun",label:"Pick a superpower",type:"one",options:["Flight","Invisibility","Teleportation","Time travel","Mind reading"]},
+  {id:"inbox",short:"Unread emails",cat:"Fun",label:"Unread emails in your inbox right now",type:"num",fmt:"int",unit:"emails",min:0,max:100000,int:true,more:"have more unread emails than",below:"have fewer unread emails than me"},
+  {id:"dessert",short:"Dessert",cat:"Fun",label:"Go-to dessert",type:"one",options:["Ice cream","Chocolate","Cake or pie","Fruit","Skip dessert"]},
+  {id:"genre",short:"Music",cat:"Fun",label:"Music you play most",type:"one",options:["Pop","Hip-hop","Rock","Country","Electronic","Jazz","Classical","Latin","Other"]}
 ];
 let QS = BUILTIN.slice();
-const cats = () => S.custom.length ? [...BASE_CATS, ["Community","From the community"]] : BASE_CATS;
+const cats = () => S.custom.some(q => q.cat === "Community") ? [...BASE_CATS, ["Community","From the community"]] : BASE_CATS;
+const SECTION_IDS = ["Money","Work","Lifestyle","Fun","Community"];
+const SECTION_NAME = {Money:"Money", Work:"Work & education", Lifestyle:"Lifestyle", Fun:"Fun", Community:"Other (community)"};
+// Best guess at a section from the wording, so admins usually just confirm it.
+function suggestCat(text, type, options){
+  const t = (text + " " + (options || []).join(" ")).toLowerCase();
+  const has = re => re.test(t);
+  if (has(/\$|money|salary|income|pay(?!.*attention)|spend|budget|save|saving|debt|loan|rent|mortgage|invest|stock|retire|bank|credit|price|cost|afford|tip(ping)?|bills?|subscription/)) return "Money";
+  if (has(/\bwork|job|career|boss|office|remote|commut|meeting|colleague|cowork|degree|school|college|universit|study|studied|major|education|promotion|interview|manager|overtime|side hustle/)) return "Work";
+  if (has(/sleep|exercise|workout|gym|run(ning)?|walk|steps|diet|eat|cook|meal|drink|water|alcohol|health|doctor|meditat|screen|phone|social media|read|book|travel|countr|vacation|friend|family|kids|partner|hobby|hobbies|weekend|morning routine|car|bike|home|house|chores/)) return "Lifestyle";
+  if (type === "one" || type === "many") return "Fun";
+  return "Community";
+}
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -475,7 +503,7 @@ function cleanCustom(x){
   if (typeof x.id !== "string" || !/^c_[a-z0-9]{4,16}$/.test(x.id)) return null;
   const label = typeof x.label === "string" ? x.label.trim().slice(0,140) : "";
   if (!label || !["num","one","many"].includes(x.type)) return null;
-  const q = {id:x.id, cat:"Community", label, short: label.length > 26 ? label.slice(0,24) + "…" : label, type:x.type, custom:true, fromKey: typeof x.fromKey === "string" ? x.fromKey.slice(0,80) : ""};
+  const q = {id:x.id, cat: SECTION_IDS.includes(x.cat) ? x.cat : "Community", label, short: label.length > 26 ? label.slice(0,24) + "…" : label, type:x.type, custom:true, fromKey: typeof x.fromKey === "string" ? x.fromKey.slice(0,80) : ""};
   if (q.type === "num"){ q.fmt = "num"; q.unit = typeof x.unit === "string" ? x.unit.trim().slice(0,20) : ""; q.min = 0; q.max = 1e7; q.step = "any"; }
   else { q.options = cleanOpts(x.options); if (q.options.length < 2) return null; }
   return q;
@@ -593,7 +621,21 @@ function makeDemo(){
       exercise: Math.round(clamp(2.8 + n()*1.9, 0, 7)),
       screen: Math.round(clamp(3.6 + n()*1.5, 0.5, 11)*2)/2,
       pineapple: pick(B.pineapple.options,[48,42,10]), chrono: pick(B.chrono.options,[34,38,28]), pets: pick(B.pets.options,[28,40,17,15]),
-      coffee: Math.round(clamp(1.6 + n()*1.3, 0, 8))
+      coffee: Math.round(clamp(1.6 + n()*1.3, 0, 8)),
+      cushion: Math.round(clamp(Math.exp(1.1 + ai*0.22 + n()*0.9) - 1, 0, 60)),
+      eatout: Math.round(clamp(((salary||24000)/1000*3.2 + 60)*Math.exp(n()*0.5), 0, 3000)/10)*10,
+      invest: pick(B.invest ? B.invest.options : ["Every month"], [ai < 1 ? 18 : 34, 28, ai < 1 ? 42 : 24, 14]),
+      streams: Math.round(clamp(2.6 + n()*1.4, 0, 9)),
+      commute: working ? Math.round(clamp(24 + n()*14, 0, 110)) : 0,
+      books: Math.round(clamp(Math.exp(1.6 + n()*1.05) - 1, 0, 120)),
+      cook: Math.round(clamp(4 + n()*1.8, 0, 7)),
+      countries: Math.round(clamp(Math.exp(1.2 + ai*0.18 + n()*0.85), 1, 90)),
+      social: pick(["Introvert","Extrovert","Somewhere in between"],[38,26,36]),
+      getaway: pick(["Beach","Mountains","Big city","Staying home"],[38,30,20,12]),
+      power: pick(["Flight","Invisibility","Teleportation","Time travel","Mind reading"],[26,10,30,22,12]),
+      inbox: Math.round(clamp(r() < .22 ? r()*15 : Math.exp(4.6 + n()*1.8), 0, 30000)),
+      dessert: pick(["Ice cream","Chocolate","Cake or pie","Fruit","Skip dessert"],[30,26,20,12,12]),
+      genre: pick(["Pop","Hip-hop","Rock","Country","Electronic","Jazz","Classical","Latin","Other"],[22,18,17,10,8,5,5,8,7])
     }});
   }
   return out;
@@ -902,7 +944,12 @@ function relayout(){
   C.me.start = RM ? 0 : now + 200;
   const key = [lens, C.manyOpt[lens] || "", ...DEMOS.map(d => S.filters[d.id] || ""), S.useDemo].join("|");
   computeFit();
-  if (key !== C.key){ C.key = key; if (!C.tour){ C.userZoom = false; toFit(); } }
+  if (key !== C.key){ C.key = key; if (!C.tour){ C.userZoom = false; toFit(); }
+    // entrance choreography for a new view: labels pop in, axis draws, a cheer ripples out from you,
+    // and confetti if you stand out (a rare answer, or the top/bottom 10%)
+    C.lt = now; C.waveT = now; C.confetti = [];
+    const pm = /<b>(\d+)%<\/b>/.exec(L.main || ""), pv = pm ? +pm[1] : null;
+    C.confettiAt = (pv != null && (/^Only /.test(L.main) || pv >= 90 || pv <= 10)) ? now + 1000 : 0; }
   else if (!C.userZoom && !C.tour) toFit();
   C.zone = ""; updateCaption();
   C.cv.setAttribute("aria-label", stripB(L.main) + ". " + stripB(L.far));
@@ -966,7 +1013,8 @@ function frame(now){
   const L = C.L;
   if (L.rings){
     g.strokeStyle = col.line; g.lineWidth = 1; g.setLineDash([4,5]);
-    L.rings.forEach(rg => { g.beginPath(); g.ellipse(SX(0), SY(6), rg.r*z, rg.r*0.8*z, 0, 0, 6.2832); g.stroke(); });
+    const rk = RM || !C.lt ? 1 : 1 - Math.pow(1 - clamp((now - C.lt - 100)/700, 0, 1), 3);
+    L.rings.forEach((rg, ri) => { const k = clamp(rk*1.25 - ri*0.12, 0, 1); if (k <= 0) return; g.beginPath(); g.ellipse(SX(0), SY(6), rg.r*z*k, rg.r*0.8*z*k, 0, 0, 6.2832); g.stroke(); });
     g.setLineDash([]);
   }
   // the crowd
@@ -982,34 +1030,58 @@ function frame(now){
     if (p.a < 0.02) continue;
     const bob = (!RM && p.mv) ? -Math.abs(Math.sin(now*0.02 + p.ph*5))*2.4 : 0;
     const sway = RM ? 0 : Math.sin(now*0.0011 + p.ph*3)*0.35;
-    const x = SX(p.x + sway), y = SY(p.y + bob);
+    let jump = 0, arms = 0;
+    if (!RM){
+      // a little hop on landing at the new spot
+      if (p.wasMv && !p.mv) p.land = now; p.wasMv = p.mv;
+      if (p.land){ const t = (now - p.land)/380; if (t < 1) jump = Math.sin(t*Math.PI)*3.4*(1 - t*0.6); else p.land = 0; }
+      // a stadium wave that ripples out from you after the crowd settles
+      if (C.waveT && p.ta > 0.5){ const d = Math.hypot(p.tx - C.me.tx, p.ty - C.me.ty), t = (now - C.waveT - 950 - d*2.4)/340;
+        if (t > 0 && t < 1){ const k = Math.sin(t*Math.PI); jump = Math.max(jump, k*7); arms = Math.max(arms, k); } }
+      // now and then someone cheers; people like you cheer more often
+      if (!p.mv && !p.cheer && p.ta > 0.5 && Math.random() < (p.tint > 0.5 ? 0.0011 : 0.0003)*dt/16.7) p.cheer = now;
+      if (p.cheer){ const t = (now - p.cheer)/760; if (t < 1){ jump = Math.max(jump, Math.abs(Math.sin(t*Math.PI*2))*4.5); arms = Math.max(arms, Math.sin(t*Math.PI)); } else p.cheer = 0; }
+    }
+    const x = SX(p.x + sway), y = SY(p.y + bob - jump);
     if (x < -30 || x > W + 30 || y < -30 || y > H + 60) continue;
-    g.fillStyle = rgba(mix(mix(col.peer, col.stageRgb, p.shade), col.hi, p.tint), p.a);
-    if (asFig) fig(g, x, y, z);
+    const fc = rgba(mix(mix(col.peer, col.stageRgb, p.shade), col.hi, p.tint), p.a);
+    g.fillStyle = fc;
+    if (asFig){ fig(g, x, y, z);
+      if (arms > 0.05){ g.strokeStyle = fc; g.lineWidth = Math.max(1, 1.5*z); g.lineCap = "round"; g.beginPath();
+        g.moveTo(x - 3.2*z, y - 6.4*z); g.lineTo(x - (4.6 + 1.4*arms)*z, y - (6.4 + 6*arms)*z);
+        g.moveTo(x + 3.2*z, y - 6.4*z); g.lineTo(x + (4.6 + 1.4*arms)*z, y - (6.4 + 6*arms)*z); g.stroke(); } }
     else { g.beginPath(); g.arc(x, y - 6*z, Math.max(1.3, 3.8*z), 0, 6.2832); g.fill(); }
   }
   // spotlight: the closer you zoom, the darker everyone else gets
   const m = C.me;
   if (now >= m.start){ m.x += (m.tx - m.x)*kp; m.y += (m.ty - m.y)*kp; }
-  const mx = SX(m.x), my = SY(m.y);
+  const beat = RM ? 0 : (now % 3200)/3200, myJump = beat < 0.16 ? Math.abs(Math.sin(beat/0.16*Math.PI*2))*4 : 0;
+  const mx = SX(m.x), my = SY(m.y - myJump);
   const nearT = clamp((z/C.fitZ - 1.6)/5, 0, 1);
   if (nearT > 0){
     const r0 = Math.max(26, 20*z), grd = g.createRadialGradient(mx, my - 7*z, r0, mx, my - 7*z, r0*3.2 + 80);
     grd.addColorStop(0, rgba(col.stageRgb, 0)); grd.addColorStop(1, rgba(col.stageRgb, 0.62*nearT));
     g.fillStyle = grd; g.fillRect(0, 0, W, H);
   }
-  // axis for number questions
+  // axis for number questions: draws itself in left to right, then the median marker drops down
+  const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3), since = RM || !C.lt ? 1e9 : now - C.lt;
   if (L.axis){
-    const A = L.axis, y = SY(A.y);
-    g.strokeStyle = col.line; g.lineWidth = 1.5; g.beginPath(); g.moveTo(SX(A.x0), y); g.lineTo(SX(A.x1), y); g.stroke();
+    const A = L.axis, y = SY(A.y), ax = ease((since - 150)/650), xe = SX(A.x0) + (SX(A.x1) - SX(A.x0))*ax;
+    g.strokeStyle = col.line; g.lineWidth = 1.5; g.beginPath(); g.moveTo(SX(A.x0), y); g.lineTo(xe, y); g.stroke();
     g.font = '500 11px "IBM Plex Mono", monospace'; g.fillStyle = col.muted; g.textAlign = "center"; g.textBaseline = "top";
     const sp = A.ticks.length > 1 ? Math.abs(SX(A.ticks[1].x) - SX(A.ticks[0].x)) : 100, step = Math.max(1, Math.ceil(64/sp));
-    A.ticks.forEach((t, i) => { if (i % step) return; const x = SX(t.x); g.fillRect(x - 0.5, y, 1, 5); g.fillText(t.label, x, y + 8); });
-    if (A.unit){ g.textAlign = "right"; g.fillText(A.unit, SX(A.x1), y + 24); }
-    const mk = SX(A.mark.x), topY = y - Math.min(220, Math.max(60, 36*z));
-    g.strokeStyle = col.muted; g.setLineDash([3,4]); g.beginPath(); g.moveTo(mk, y); g.lineTo(mk, topY); g.stroke(); g.setLineDash([]);
-    g.textAlign = "left"; g.textBaseline = "bottom"; g.fillStyle = col.ink; g.fillText(A.mark.label, mk + 5, topY + 10);
+    A.ticks.forEach((t, i) => { if (i % step) return; const x = SX(t.x); if (x > xe + 1) return; g.fillRect(x - 0.5, y, 1, 5); g.fillText(t.label, x, y + 8); });
+    if (A.unit && ax >= 1){ g.textAlign = "right"; g.fillText(A.unit, SX(A.x1), y + 24); }
+    const mt = ease((since - 700)/500);
+    if (mt > 0){ const mk = SX(A.mark.x), topY = y - Math.min(220, Math.max(60, 36*z))*mt;
+      g.globalAlpha = mt; g.strokeStyle = col.muted; g.setLineDash([3,4]); g.beginPath(); g.moveTo(mk, y); g.lineTo(mk, topY); g.stroke(); g.setLineDash([]);
+      g.textAlign = "left"; g.textBaseline = "bottom"; g.fillStyle = col.ink; g.fillText(A.mark.label, mk + 5, topY + 10); g.globalAlpha = 1; }
   }
+  // a ring that ripples out from you when the view changes
+  if (!RM && C.waveT){ const t = (now - C.waveT - 900)/1100;
+    if (t > 0 && t < 1){ g.strokeStyle = col.you; g.lineWidth = 2; g.globalAlpha = (1 - t)*0.55;
+      g.beginPath(); g.ellipse(mx, my - 7*z, 12 + t*Math.max(160, 220*z), (12 + t*Math.max(160, 220*z))*0.62, 0, 0, 6.2832); g.stroke(); g.globalAlpha = 1; }
+    else if (t >= 1 && now - C.waveT > 4000) C.waveT = 0; }
   // you
   const pulse = RM ? 0.5 : (Math.sin(now*0.005) + 1)/2;
   const ry = my - 7*Math.max(z, 0.6);
@@ -1023,13 +1095,25 @@ function frame(now){
   g.beginPath(); if (g.roundRect) g.roundRect(mx - tw/2, py - 20, tw, 20, 6); else g.rect(mx - tw/2, py - 20, tw, 20); g.fill();
   g.beginPath(); g.moveTo(mx - 5, py); g.lineTo(mx + 5, py); g.lineTo(mx, py + 6); g.fill();
   g.fillStyle = col.stage; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("You", mx, py - 10);
+  // confetti when you stand out
+  if (!RM && C.confettiAt && now >= C.confettiAt){ C.confettiAt = 0;
+    const cols = [col.you, "#2340C8", "#E5484D", "#30A46C", "#8E4EC6", "#F2B33D"];
+    for (let i = 0; i < 46; i++){ const a = -Math.PI/2 + (Math.random() - 0.5)*2.1, v = (0.22 + Math.random()*0.3)*clamp(1.4/z, 1, 4);
+      C.confetti.push({x:m.x, y:m.y - 14, vx:Math.cos(a)*v, vy:Math.sin(a)*v, r:Math.random()*6.3, vr:(Math.random() - 0.5)*0.02, c:cols[i % cols.length], t0:now}); } }
+  if (C.confetti && C.confetti.length){
+    C.confetti = C.confetti.filter(q => now - q.t0 < 1900);
+    for (const q of C.confetti){ q.vy += 0.0009*clamp(1.4/z, 1, 4)*dt; q.vx *= Math.pow(0.996, dt); q.x += q.vx*dt; q.y += q.vy*dt; q.r += q.vr*dt;
+      const life = 1 - (now - q.t0)/1900; g.save(); g.translate(SX(q.x), SY(q.y)); g.rotate(q.r); g.globalAlpha = Math.min(1, life*1.6);
+      g.fillStyle = q.c; g.fillRect(-Math.max(3.5, 2.2*z), -Math.max(1.8, 1.1*z), Math.max(7, 4.4*z), Math.max(3.6, 2.2*z)); g.restore(); } }
   // labels
   g.textAlign = "center"; g.textBaseline = "top";
-  (L.labels || []).forEach(lb => {
-    const x = SX(lb.x), y = SY(lb.y);
+  (L.labels || []).forEach((lb, li) => {
+    const lt = ease((since - 300 - li*90)/380); if (lt <= 0) return;
+    g.globalAlpha = lt; const x = SX(lb.x), y = SY(lb.y) + (1 - lt)*12;
     g.font = `${lb.strong ? 700 : 400} ${lb.small ? 11 : 13}px "Atkinson Hyperlegible", sans-serif`;
     g.fillStyle = lb.strong ? col.you : (lb.small ? col.muted : col.ink); g.fillText(lb.text, x, y);
     if (lb.sub){ g.font = '500 12px "IBM Plex Mono", monospace'; g.fillStyle = col.muted; g.fillText(lb.sub, x, y + 17); }
+    g.globalAlpha = 1;
   });
   if (L.rings){
     g.font = '500 11px "IBM Plex Mono", monospace'; g.fillStyle = col.muted; g.textBaseline = "bottom";
@@ -1424,7 +1508,8 @@ async function loadSuggestions(){
 }
 async function loadQuestions(){
   if (!S.sb) return;
-  const {data, error} = await S.sb.from("cm_questions").select("id,label,type,unit,options,from_suggestion").order("created_at");
+  let {data, error} = await S.sb.from("cm_questions").select("id,label,type,unit,options,from_suggestion,cat").order("created_at");
+  if (error && /42703|cat/.test(String(error.code) + (error.message || ""))) ({data, error} = await S.sb.from("cm_questions").select("id,label,type,unit,options,from_suggestion").order("created_at"));
   if (error){ if (isMissing(error)) S.dbMissing = true; return; }
   const seen = new Set();
   S.custom = (data || []).slice(0,30).map(r => cleanCustom({...r, fromKey: r.from_suggestion || ""})).filter(q => q && !seen.has(q.id) && seen.add(q.id));
@@ -1547,13 +1632,15 @@ function renderAdmin(){
     const extra = r.type === "num"
       ? (editable ? `<input class="field" data-f="unit" maxlength="20" value="${esc(r.unit || "")}" placeholder="Unit (optional)">` : (r.unit ? `<span class="sug-meta">Unit: ${esc(r.unit)}</span>` : ""))
       : (editable ? `<input class="field" data-f="options" maxlength="400" value="${esc(r.options.join(", "))}" placeholder="Choices, separated by commas">` : `<span class="sug-meta">${esc(r.options.join(" · "))}</span>`);
+    const pickCat = r.status === "added" ? (r.question_cat || "Community") : suggestCat(r.text, r.type, r.options), sug = suggestCat(r.text, r.type, r.options);
+    const section = r.status === "dismissed" ? "" : `<label class="adm-sec"><span>Section</span><select class="field" data-f="cat">${SECTION_IDS.map(c => `<option value="${c}"${c === pickCat ? " selected" : ""}>${esc(SECTION_NAME[c])}${c === sug ? " · suggested" : ""}</option>`).join("")}</select>${r.status === "added" ? `<button class="btn ghost sm" data-adm="recat" type="button">Save section</button>` : ""}</label>`;
     const actions = r.status === "open"
       ? `<button class="btn sm" data-adm="approve" type="button">Approve &amp; add to survey</button><button class="btn ghost sm" data-adm="dismiss" type="button">Dismiss</button>`
       : r.status === "added" ? `<button class="btn ghost sm" data-adm="unadd" type="button">Remove from survey</button>`
       : `<button class="btn ghost sm" data-adm="restore" type="button">Restore to pending</button>`;
     return `<div class="adm" data-id="${esc(r.id)}"><div class="adm-top"><span class="badge${r.status==="added"?" on":""}">${typeName[r.type] || r.type}</span><span class="meta">${r.votes} vote${r.votes===1?"":"s"} · ${when(r.created_at)}</span></div>
       ${editable ? `<input class="field" data-f="text" maxlength="140" value="${esc(r.text)}" aria-label="Question wording">` : `<p>${esc(r.text)}</p>`}
-      ${extra}<div class="adm-row">${actions}</div></div>`;
+      ${extra}${section}<div class="adm-row">${actions}</div></div>`;
   }).join("");
 }
 function bindAdmin(){
@@ -1572,9 +1659,14 @@ function bindAdmin(){
       else { options = cleanOpts(card.querySelector('[data-f="options"]').value.split(",")); if (options.length < 2){ admStatus("Add at least 2 choices.", true); b.disabled = false; return; } }
       if (S.custom.length >= 30){ admStatus("The survey already has 30 community questions. Remove one first.", true); b.disabled = false; return; }
       ({error} = await S.sb.from("cm_suggestions").update({text, unit, options}).eq("id", r.id));
-      if (!error) ({error} = await S.sb.from("cm_questions").insert({id:"c_" + rid(), label:text, type:r.type, unit: r.type === "num" ? (unit || "") : null, options, from_suggestion:r.id}));
+      const cat = SECTION_IDS.includes(card.querySelector('[data-f="cat"]').value) ? card.querySelector('[data-f="cat"]').value : "Community";
+      if (!error) ({error} = await S.sb.from("cm_questions").insert({id:"c_" + rid(), label:text, type:r.type, unit: r.type === "num" ? (unit || "") : null, options, from_suggestion:r.id, cat}));
       if (!error) ({error} = await S.sb.from("cm_suggestions").update({status:"added"}).eq("id", r.id));
-      if (!error) admStatus("Approved. Everyone now sees it on the You tab.");
+      if (!error) admStatus(`Approved under ${SECTION_NAME[cat]}. Everyone now sees it on the ${cat === "Work" ? "You" : "Swipe"} tab.`);
+    } else if (act === "recat"){
+      const cat = card.querySelector('[data-f="cat"]').value;
+      ({error} = await S.sb.from("cm_questions").update({cat}).eq("from_suggestion", r.id));
+      if (!error) admStatus(`Moved to ${SECTION_NAME[cat]}.`);
     } else if (act === "dismiss"){
       ({error} = await S.sb.from("cm_suggestions").update({status:"dismissed"}).eq("id", r.id));
       if (!error) admStatus("Dismissed. It's hidden from the public board.");

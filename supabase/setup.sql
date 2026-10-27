@@ -144,6 +144,11 @@ create table if not exists public.cm_questions (
 );
 alter table public.cm_questions enable row level security;
 
+-- Section each community question appears under (picked by an admin when approving).
+alter table public.cm_questions add column if not exists cat text not null default 'Community';
+alter table public.cm_questions drop constraint if exists cm_questions_cat;
+alter table public.cm_questions add constraint cm_questions_cat check (cat in ('Money', 'Work', 'Lifestyle', 'Fun', 'Community'));
+
 drop policy if exists "Anyone reads questions" on public.cm_questions;
 drop policy if exists "Admins write questions" on public.cm_questions;
 create policy "Anyone reads questions" on public.cm_questions for select to anon, authenticated using (true);
@@ -154,13 +159,15 @@ create policy "Admins write questions" on public.cm_questions for all to authent
 -- whether it's live in the survey. Returns nothing for non-admins. Never
 -- returns who suggested or voted.
 -- ---------------------------------------------------------------------------
+drop function if exists public.cm_admin_suggestions();
 create or replace function public.cm_admin_suggestions()
 returns table (id uuid, text text, type text, unit text, options jsonb, status text,
-               created_at timestamptz, votes integer, question_id text)
+               created_at timestamptz, votes integer, question_id text, question_cat text)
 language sql stable security definer set search_path = public as $$
   select s.id, s.text, s.type, s.unit, s.options, s.status, s.created_at,
          (select count(*) from public.cm_votes v where v.suggestion_id = s.id)::integer,
-         (select q.id from public.cm_questions q where q.from_suggestion = s.id limit 1)
+         (select q.id from public.cm_questions q where q.from_suggestion = s.id limit 1),
+         (select q.cat from public.cm_questions q where q.from_suggestion = s.id limit 1)
   from public.cm_suggestions s
   where public.cm_is_admin()
   order by s.created_at desc

@@ -12,7 +12,9 @@ Answer questions about yourself, then step into a crowd and see where you blend 
 - **Matches**: your 10 closest matches, what you have in common and where you differ.
 - **Share**: a 1080×1350 card with your top stat drawn as a crowd of 100. On phones it opens the share sheet.
 - **Ideas**: suggest and vote on new questions. Adding to or removing from the survey happens only on the Admin tab.
-- **Admin** (admins only): review every suggestion, tidy the wording, and approve it into the survey, dismiss it, or restore it.
+- **Admin** (admins only): review every suggestion, tidy the wording, pick its section (Money, Work & education, Lifestyle, Fun or Other; a suggested section is preselected from the wording), and approve it into the survey, dismiss it, or restore it. Approved questions can be moved to another section later.
+
+If you ran `setup.sql` before section tags existed, run it again to add the `cat` column.
 
 Until at least 3 real people have answered, the crowd is filled with 320 clearly labeled sample people so there's something to explore.
 
